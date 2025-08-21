@@ -1,6 +1,17 @@
-## Latihan 1
+---
+title: "Pendahuluan MPDW"
+author: "Elardian Putera Ramadhan (G1401231042)"
+date: "2025-08-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Install Packages
 
 ```{r}
-install.packages(c("forecast", "graphics", "TTR", "TSA", "aTSA", "lmtest", "MLmetrics",
-"car", "dplyr", "MASS", "tsibble", "tseries", "ggplot2", "nortest" ))
+# install.packages(c("forecast", "graphics", "TTR", "TSA", "aTSA", "lmtest", "MLmetrics", "car", "dplyr", "MASS", "tsibble", "tseries", "ggplot2", "nortest" ))
 ```
+
