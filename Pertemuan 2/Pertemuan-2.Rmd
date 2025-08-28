@@ -77,7 +77,7 @@ ts.plot(data1.ts, xlab="Time Period ", ylab="Reading",
 points(data1.ts)
 
 #menyimpan plot
-dev.copy(png, "plot_data1.png")
+dev.copy(png, "Plot/plot_data1.png")
 dev.off()
 ```
 
@@ -87,7 +87,7 @@ ts.plot(data2.ts, xlab="Time Period ", ylab="Sales",
 points(data2.ts)
 
 #menyimpan plot
-dev.copy(png, "plot_data2.png")
+dev.copy(png, "Plot/plot_data2.png")
 dev.off()
 ```
 
@@ -197,11 +197,9 @@ Selanjutnya perhitungan akurasi dilakukan dengan ukuran akurasi *Sum Squares Err
 
 $$
 SSE = \sum_{t=1}^{n} (y_t - \hat{y}_t)^2
-$$
-$$
+$$ $$
 MSE = \frac{1}{n} \sum_{t=1}^{n} (y_t - \hat{y}_t)^2
-$$
-$$
+$$ $$
 MAPE = \frac{1}{n} \sum_{t=1}^{n} \left|\frac{y_t - \hat{y}_t}{y_t}\right| * 100
 $$
 
@@ -970,7 +968,7 @@ akurasi_testing2 <- data.frame(
 akurasi_testing2
 ```
 
-## Tugas 
+## Tugas
 
 1.  Setiap kelompok memilih satu data time series dengan panjang ≥ 500 periode.
 
