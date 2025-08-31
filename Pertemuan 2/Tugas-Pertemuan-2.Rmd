@@ -26,6 +26,17 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## **Library/Packages**
 
+*Package* R yang akan digunakan pada perkuliahan Analisis Deret Waktu sesi UTS adalah: `forecast`, `graphics`, `TTR`, `TSA` . Jika *package* tersebut belum ada, silakan install terlebih dahulu.
+
+```{r}
+#install.packages("forecast")
+#install.packages("graphics")
+#install.packages("TTR")
+#install.packages("TSA")
+```
+
+Jika sudah ada, silakan panggil library *package* tersebut.
+
 ```{r}
 library("forecast")
 library("graphics")
@@ -56,16 +67,27 @@ head(data_subset)
 
 ## **Eksplorasi Data**
 
+`View()` : menampilkan data dalam bentuk tabel, `str()` : menampilkan struktur data, `dim()` : menampilkan dimensi data
+
 ```{r}
 View(data_subset)
 str(data_subset)
 dim(data_subset)
 ```
 
+Mengubah data agar terbaca sebagai data deret waktu dengan fungsi `ts()`.
+
 ```{r}
 data_subset.ts <- ts(data_subset$Price)
+```
+
+Menampilkan ringkasan data
+
+```{r}
 summary(data_subset.ts)
 ```
+
+Membuat plot deret waktu
 
 ```{r}
 ts.plot(data_subset.ts,
@@ -99,6 +121,10 @@ train_ma.ts <- ts(training_ma$Price)
 test_ma.ts <- ts(testing_ma$Price)
 ```
 
+### **Eksplorasi**
+
+Eksplorasi data dilakukan pada keseluruhan data, data latih serta data uji menggunakan plot data deret waktu.
+
 ```{r}
 # Eksplorasi keseluruhan data
 plot(data_subset.ts, main = "Plot Deret Waktu Harga Bitcoin",
@@ -113,6 +139,8 @@ plot(test_ma.ts, main = "Plot Data Uji Harga Bitcoin",
      xlab = "Waktu", ylab = "Harga (USD)", col = "blue")
 points(test_ma.ts)
 ```
+
+Eksplorasi data juga dapat dilakukan menggunakan package `ggplot2` dengan terlebih dahulu memanggil library *package* `ggplot2`.
 
 ```{r}
 library(ggplot2)
@@ -138,18 +166,36 @@ ggplot() +
   )
 ```
 
-### **Single Moving Average (SMA)**
+## **Single Moving Average (SMA)**
+
+Ide dasar dari Single Moving Average (SMA) adalah data suatu periode dipengaruhi oleh data periode sebelumnya. Metode pemulusan ini cocok digunakan untuk pola data stasioner atau konstan. Prinsip dasar metode pemulusan ini adalah data pemulusan pada periode ke-t merupakan rata rata dari m buah data pada periode ke-t hingga periode ke (t-m+1).
+
+$$
+S_t = \frac{1}{m} \sum_{i=t-m+1}^{t} X_i
+$$
+
+Data pemulusan pada periode ke-t selanjutnya digunakan sebagai nilai peramalan pada periode ke t+1.
+
+$$
+F_t = S_{t-1}, F_{n,h} = S_n
+$$
+
+Pemulusan menggunakan metode SMA dilakukan dengan fungsi `SMA()`. Dalam hal ini akan dilakukan pemulusan dengan parameter `m=3`.
 
 ```{r}
 data_subset.sma <- SMA(train_ma.ts, n = 3)
 data_subset.sma
 ```
 
+Data pemulusan pada periode ke-t selanjutnya digunakan sebagai nilai peramalan pada periode ke t+1 sehingga hasil peramalan 1 periode kedepan adalah sebagai berikut.
+
 ```{r}
 data_subset.ramal_sma <- c(NA, data_subset.sma)
 # Menampilkan hasil peramalan SMA 1 periode ke depan
 data_subset.ramal_sma
 ```
+
+Selanjutnya dilakukan peramalan sebanyak 26 periode sesuai dengan jumlah data uji. Pada metode SMA, seluruh hasil peramalan untuk 26 periode ke depan akan memiliki nilai yang sama dengan hasil ramalan satu periode ke depan.
 
 ```{r}
 #  Forecasting 26 periode ke depan
@@ -161,6 +207,8 @@ data.gab<-cbind(
 data.gab
 ```
 
+Adapun plot data deret waktu dari hasil peramalan yang dilakukan adalah sebagai berikut.
+
 ```{r}
 # Plot hasil peramalan SMA
 ts.plot(data_subset.ts, xlab = "Periode Waktu", ylab = "Harga (USD)", main = "Peramalan Harga Bitcoin dengan Single Moving Average (SMA) N = 3")
@@ -169,6 +217,18 @@ lines(data.gab[,2], col = "blue", lty = 2) # Pemulusan
 lines(data.gab[,3], col = "red", lty = 1)  # Ramalan
 legend("topright", legend = c("Aktual", "Pemulusan (SMA)", "Ramalan (SMA)"), col = c("black", "blue", "red"), lty = c(1, 2, 1))
 ```
+
+Selanjutnya perhitungan akurasi dilakukan dengan ukuran akurasi *Sum Squares Error* (SSE), *Mean Square Error* (MSE) dan *Mean Absolute Percentage Error* (MAPE). Perhitungan akurasi dilakukan baik pada data latih maupun pada data uji.
+
+$$
+SSE = \sum_{t=1}^{n} (y_t - \hat{y}_t)^2
+$$ $$
+MSE = \frac{1}{n} \sum_{t=1}^{n} (y_t - \hat{y}_t)^2
+$$ $$
+MAPE = \frac{1}{n} \sum_{t=1}^{n} \left|\frac{y_t - \hat{y}_t}{y_t}\right| * 100
+$$
+
+### **Akurasi Data Latih**
 
 ```{r}
 # Menghitung nilai keakuratan data latih
@@ -182,6 +242,8 @@ rownames(akurasi_train.sma) <- c("SSE", "MSE", "MAPE")
 akurasi_train.sma
 ```
 
+### **Akurasi Data Uji**
+
 ```{r}
 # Menghitung nilai keakuratan data uji
 error_test.sma <- test_ma.ts - data.gab[,3][(length(train_ma.ts)+1):length(data_subset.ts)]
@@ -194,7 +256,35 @@ rownames(akurasi_test.sma) <- c("SSE", "MSE", "MAPE")
 akurasi_test.sma
 ```
 
-### **Double Moving Average (DMA)**
+## **Double Moving Average (DMA)**
+
+Metode pemulusan Double Moving Average (DMA) pada dasarnya mirip dengan SMA. Namun demikian, metode ini lebih cocok digunakan untuk pola data trend. Proses pemulusan dengan rata rata dalam metode ini dilakukan sebanyak 2 kali.
+
+-   **Tahap I:**
+
+$$
+S_{1,t} = \frac{1}{m} \sum_{i=t-m+1}^{t} X_i
+$$
+
+-   **Tahap II:**
+
+$$
+S_{2,t} = \frac{1}{m} \sum_{i=t-m+1}^{t} S_{1,i}
+$$
+
+Forecast $h$ langkah ke depan dihitung dengan:
+
+$$
+F_{2,t,t+h} = A_t + B_t \,(h)
+$$
+
+dengan komponen level ($A_t$) dan tren ($B_t$):
+
+$$
+A_t = 2S_{1,t} - S_{2,t}
+\qquad\text{dan}\qquad
+B_t = \frac{2}{m-1}\,\big(S_{1,t} - S_{2,t}\big)
+$$
 
 ```{r}
 dma <- SMA(data_subset.sma, n = 3)
@@ -222,6 +312,8 @@ data.gab2 <- cbind(
 data.gab2
 ```
 
+Hasil pemulusan menggunakan metode DMA divisualisasikan sebagai berikut
+
 ```{r}
 # Plot hasil peramalan DMA
 ts.plot(data_subset.ts, xlab = "Periode Waktu", ylab = "Harga (USD)", main = "Peramalan Harga Bitcoin dengan Double Moving Average (DMA) N = 3")
@@ -230,6 +322,9 @@ lines(data.gab2[,3], col = "green", lty = 2, lwd = 2) # Pemulusan 2
 lines(data.gab2[,6], col = "red", lty = 1, lwd = 2)  # Ramalan
 legend("topright", legend = c("Aktual", "Pemulusan 2 (DMA)", "Ramalan (DMA)"), col = c("black", "green", "red"), lty = c(1, 2, 1))
 ```
+Selanjutnya perhitungan akurasi dilakukan dengan ukuran akurasi *Sum Squares Error* (SSE), *Mean Square Error* (MSE) dan *Mean Absolute Percentage Error* (MAPE). Perhitungan akurasi dilakukan baik pada data latih maupun pada data uji.
+
+### **Akurasi Data Latih**
 
 ```{r}
 # Menghitung nilai keakuratan data latih
@@ -243,6 +338,8 @@ rownames(akurasi_train.dma) <- c("SSE", "MSE", "MAPE")
 akurasi_train.dma
 ```
 
+### **Akurasi Data Uji**
+
 ```{r}
 # Menghitung nilai keakuratan data uji
 error_test.dma <- test_ma.ts - data.gab2[,6][(length(train_ma.ts)+1):length(data_subset.ts)]
@@ -254,6 +351,22 @@ colnames(akurasi_test.dma) <- c("Akurasi m = 3")
 rownames(akurasi_test.dma) <- c("SSE", "MSE", "MAPE")
 akurasi_test.dma
 ```
+
+## **Perbandingan SMA dan DMA**
+
+```{r}
+MAPE_test.Full <- matrix(c(
+  MAPE_train.sma,
+  MAPE_train.dma,
+  MAPE_test.sma,
+  MAPE_test.dma
+))
+colnames(MAPE_test.Full) <- c("MAPE")
+rownames(MAPE_test.Full) <- c("MAPE Data Latih SMA", "MAPE Data Latih DMA", "MAPE Data Uji SMA", "MAPE Data Uji DMA")
+MAPE_test.Full
+```
+
+Berdasarkan data yang diberikan, model **Single Moving Average (SMA)** menunjukkan performa yang lebih konsisten dibandingkan **Double Moving Average (DMA)**. Pada **data latih**, SMA memiliki MAPE (Mean Absolute Percentage Error) sebesar **10.60%**, yang sedikit lebih baik dari DMA dengan 11.46%. Perbedaan paling signifikan terlihat pada **data uji**, di mana akurasi SMA menurun menjadi **14.24%**, sementara akurasi DMA anjlok drastis ke **45.29%**, menandakan bahwa model DMA gagal total dalam memprediksi data baru, kemungkinan karena volatilitas data yang tidak dapat ditangkap oleh asumsi tren linear yang digunakan.
 
 ## **Single Exponential Smoothing & Double Exponential Smoothing**
 
@@ -318,6 +431,22 @@ ggplot() +
 
 ## **Single Exponential Smoothing (SES)**
 
+Single Exponential Smoothing (SES) adalah metode peramalan deret waktu yang dikembangkan untuk mengatasi kelemahan Moving Average. Jika pada Moving Average setiap data periode sebelumnya dianggap memiliki bobot yang sama, maka SES memberikan bobot yang semakin mengecil secara eksponensial terhadap data lama, sehingga data terbaru diberi bobot lebih besar.
+
+Single Exponential Smoothing merupakan metode pemulusan yang tepat digunakan untuk data dengan pola stasioner atau konstan.
+
+Nilai pemulusan pada periode ke-t didapat dari persamaan:
+
+$$ \tilde{y}_T=\lambda y_t+(1-\lambda)\tilde{y}_{T-1} $$
+
+Nilai parameter $\lambda$ adalah nilai antara 0 dan 1.
+
+Nilai pemulusan periode ke-t bertindak sebagai nilai ramalan pada periode ke-$(T+\tau)$.
+
+$$ \tilde{y}_{T+\tau}(T)=\tilde{y}_T $$
+
+Pemulusan dengan metode SES dapat dilakukan dengan dua fungsi dari *packages* berbeda, yaitu (1) fungsi `ses()` dari *packages* `forecast` dan (2) fungsi `HoltWinters` dari *packages* `stats` .
+
 ```{r}
 # Cara 1 (fungsi SES)
 # Untuk nilai alpha 0.2
@@ -329,6 +458,22 @@ data_subset.ses2 <- ses(train_es.ts, alpha = 0.7, h = 26)
 plot(data_subset.ses2, main = "Peramalan Harga Bitcoin dengan Single Exponential Smoothing (SES)\nAlpha = 0.7", xlab = "Periode Waktu", ylab = "Harga (USD)")
 data_subset.ses2
 ```
+
+Pada fungsi `ses()` , terdapat beberapa argumen yang umum digunakan, yaitu
+
+-   `y` : nilai data deret waktu
+
+-   `alpha` : parameter pemulusan utama (0–1), mengatur bobot data terbaru vs data lama.
+
+-   `beta` : parameter pemulusan tren.
+
+-   `gamma` : parameter pemulusan musiman.
+
+-   `h` : jumlah periode ke depan yang ingin diramalkan (forecast horizon).
+
+    Kasus di atas merupakan contoh inisialisasi nilai parameter $\lambda$ dengan nilai `alpha` 0,2 dan 0,7 dan banyak periode data yang akan diramalkan adalah sebanyak 26 periode.
+
+Untuk mendapatkan gambar hasil pemulusan pada data latih dengan fungsi `ses()` , perlu digunakan fungsi `autoplot()` dan `autolayer()` dari *library packages* `ggplot2` .
 
 ```{r}
 autoplot(data_subset.ses1) +
@@ -367,6 +512,8 @@ autoplot(data_subset.ses2) +
   )
 ```
 
+Selanjutnya akan digunakan fungsi `HoltWinters()` dengan nilai inisialisasi parameter dan panjang periode peramalan yang sama dengan fungsi `ses()`.
+
 ```{r}
 # Cara 2 (fungsi HoltWinters)
 # Untuk nilai alpha 0.2
@@ -383,6 +530,10 @@ data_subset.ramal.ses4 <- forecast(data_subset.ses4, h = 26)
 data_subset.ramal.ses4
 ```
 
+Fungsi `HoltWinters` memiliki argumen yang sama dengan fungsi `ses()`. Argumen-argumen kedua fungsi dapat dilihat lebih lanjut dengan `?ses()` atau `?HoltWinters`.
+
+Nilai parameter $\alpha$ dari kedua fungsi dapat dioptimalkan menyesuaikan dari *error*-nya paling minimumnya. Caranya adalah dengan membuat parameter $\alpha =$ `NULL`.
+
 ```{r}
 # Mencari nilai alpha optimum
 # SES
@@ -397,6 +548,8 @@ plot(data_subset.ses_opt2, main = "Peramalan Harga Bitcoin dengan Single Exponen
 data_subset.ramal.ses_opt2 <- forecast(data_subset.ses_opt2, h = 26)
 data_subset.ramal.ses_opt2
 ```
+
+Setelah dilakukan peramalan, akan dilakukan perhitungan keakuratan hasil peramalan. Perhitungan akurasi ini dilakukan baik pada data latih dan data uji.
 
 ### **Akurasi Data Latih**
 
@@ -481,26 +634,29 @@ error_test.ses1 <- as.numeric(data_subset.ramal.ses3$mean)[1:n_test] - as.numeri
 error_test.ses2 <- as.numeric(data_subset.ramal.ses4$mean)[1:n_test] - as.numeric(test_es.ts)
 error_test.ses_opt <- as.numeric(data_subset.ramal.ses_opt2$mean)[1:n_test] - as.numeric(test_es.ts)
 
-# SSE / MSE / RMSE untuk masing-masing model (abaikan NA)
+# SSE / MSE / RMSE / MAPE untuk masing-masing model (abaikan NA)
 SSE_test.ses1 <- sum(error_test.ses1^2, na.rm = TRUE)
 MSE_test.ses1 <- mean(error_test.ses1^2, na.rm = TRUE)
 RMSE_test.ses1 <- sqrt(MSE_test.ses1)
+MAPE_test.ses1 <- mean(abs(error_test.ses1 / test_es.ts) * 100, na.rm = TRUE)
 
 SSE_test.ses2 <- sum(error_test.ses2^2, na.rm = TRUE)
 MSE_test.ses2 <- mean(error_test.ses2^2, na.rm = TRUE)
 RMSE_test.ses2 <- sqrt(MSE_test.ses2)
+MAPE_test.ses2 <- mean(abs(error_test.ses2 / test_es.ts) * 100, na.rm = TRUE)
 
 SSE_test.ses_opt <- sum(error_test.ses_opt^2, na.rm = TRUE)
 MSE_test.ses_opt <- mean(error_test.ses_opt^2, na.rm = TRUE)
 RMSE_test.ses_opt <- sqrt(MSE_test.ses_opt)
+MAPE_test.ses_opt <- mean(abs(error_test.ses_opt / test_es.ts) * 100, na.rm = TRUE)
 
 # Tabel akurasi
 akurasi_test.ses <- rbind(
-  c(SSE = SSE_test.ses1, MSE = MSE_test.ses1, RMSE = RMSE_test.ses1),
-  c(SSE = SSE_test.ses2, MSE = MSE_test.ses2, RMSE = RMSE_test.ses2),
-  c(SSE = SSE_test.ses_opt, MSE = MSE_test.ses_opt, RMSE = RMSE_test.ses_opt)
+  c(SSE = SSE_test.ses1, MSE = MSE_test.ses1, RMSE = RMSE_test.ses1, MAPE = MAPE_test.ses1),
+  c(SSE = SSE_test.ses2, MSE = MSE_test.ses2, RMSE = RMSE_test.ses2, MAPE = MAPE_test.ses2),
+  c(SSE = SSE_test.ses_opt, MSE = MSE_test.ses_opt, RMSE = RMSE_test.ses_opt, MAPE = MAPE_test.ses_opt)
 )
-akurasi_test.ses <- as.data.frame(akurasi_test.ses)
+colnames(akurasi_test.ses) <- c("SSE", "MSE", "RMSE", "MAPE")
 rownames(akurasi_test.ses) <- c("Akurasi alpha = 0.2", "Akurasi alpha = 0.7", "Akurasi alpha optimum")
 akurasi_test.ses
 ```
@@ -513,8 +669,12 @@ accuracy(data_subset.ramal.ses_opt2, test_es.ts)
 
 ## **Double Exponential Smoothing (DES)**
 
+Metode pemulusan *Double Exponential Smoothing* (DES) digunakan untuk data yang memiliki pola tren. Metode DES adalah metode semacam SES, hanya saja dilakukan dua kali, yaitu pertama untuk tahapan 'level' dan kedua untuk tahapan 'tren'. Pemulusan menggunakan metode ini akan menghasilkan peramalan tidak konstan untuk periode berikutnya.
+
+Pemulusan dengan metode DES kali ini akan menggunakan fungsi `HoltWinters()` . Jika sebelumnya nilai argumen `beta` dibuat `FALSE` , kali ini argumen tersebut akan diinisialisasi bersamaan dengan nilai `alpha` .
+
 ```{r}
-# Lambda = 0.2 dan Gamma = 0.2
+# Alpha = 0.2 dan Beta = 0.2
 data_subset.des1 <- HoltWinters(train_es.ts, alpha = 0.2, beta = 0.2, gamma = FALSE)
 plot(data_subset.des1, main = "Peramalan Harga Bitcoin dengan Double Exponential Smoothing (DES)\nAlpha = 0.2, Beta = 0.2", xlab = "Periode Waktu", ylab = "Harga (USD)")
 
@@ -522,7 +682,7 @@ plot(data_subset.des1, main = "Peramalan Harga Bitcoin dengan Double Exponential
 data_subset.ramal.des1 <- forecast(data_subset.des1, h = 26)
 data_subset.ramal.des1
 
-# Lambda = 0.6 dan Gamma = 0.3
+# Alpha = 0.6 dan Beta = 0.3
 data_subset.des2 <- HoltWinters(train_es.ts, alpha = 0.6, beta = 0.3, gamma = FALSE)
 plot(data_subset.des2, main = "Peramalan Harga Bitcoin dengan Double Exponential Smoothing (DES)\nAlpha = 0.6, Beta = 0.3", xlab = "Periode Waktu", ylab = "Harga (USD)")
 
@@ -530,6 +690,8 @@ plot(data_subset.des2, main = "Peramalan Harga Bitcoin dengan Double Exponential
 data_subset.ramal.des2 <- forecast(data_subset.des2, h = 26)
 data_subset.ramal.des2
 ```
+
+Selanjutnya jika ingin membandingkan plot data latih dan data uji adalah sebagai berikut.
 
 ```{r}
 plot(data_subset.ts, main = "Peramalan Harga Bitcoin dengan Double Exponential Smoothing (DES)\nAlpha = 0.2, Beta = 0.2", xlab = "Periode Waktu", ylab = "Harga (USD)")
@@ -545,6 +707,8 @@ lines(data_subset.ramal.des2$mean, col = "red", lty = 1, lwd = 2)  # Ramalan
 legend("topright", legend = c("Aktual", "Pemulusan (DES)", "Ramalan (DES)"), col = c("black", "green", "red"), lty = c(1, 2, 1))
 ```
 
+Untuk mendapatkan nilai parameter optimum dari DES, argumen `alpha` dan `beta` dapat dibuat `NULL` seperti berikut.
+
 ```{r}
 # Mencari nilai alpha dan beta optimum
 data_subset.des_opt <- HoltWinters(train_es.ts, gamma = FALSE)
@@ -555,6 +719,8 @@ plot(data_subset.des_opt, main = "Peramalan Harga Bitcoin dengan Double Exponent
 data_subset.ramal.des_opt <- forecast(data_subset.des_opt, h = 26)
 data_subset.ramal.des_opt
 ```
+
+Selanjutnya akan dilakukan perhitungan akurasi pada data latih maupun data uji dengan ukuran akurasi SSE, MSE dan MAPE.
 
 ### **Akurasi Data Latih**
 
@@ -620,15 +786,33 @@ rownames(akurasi_test.des) <- c("Akurasi alpha = 0.2, beta = 0.2", "Akurasi alph
 akurasi_test.des
 ```
 
-### **Perbandingan SES dan DES**
+## **Perbandingan SES dan DES**
 
 ```{r}
-MSE_test.Full <- matrix(c(
-  MSE_test.ses1, MSE_test.ses2, MSE_test.ses_opt,
-  MSE_test.des1, MSE_test.des2, MSE_test.des_opt
-), nrow = 2, byrow = TRUE)
-colnames(MSE_test.Full) <- c("Alpha = 0.2", "Alpha = 0.7", "Alpha & Beta Optimum")
-rownames(MSE_test.Full) <- c("Single Exponential Smoothing (SES)", "Double Exponential Smoothing (DES)")
-MSE_test.Full
+MAPE_test.Full2 <- matrix(c(
+  MAPE_train.ses1_manual,
+  MAPE_train.ses2_manual,
+  MAPE_train.des1,
+  MAPE_train.des2,
+  MAPE_test.ses1,
+  MAPE_test.ses2,
+  MAPE_test.ses_opt,
+  MAPE_test.des1,
+  MAPE_test.des2,
+  MAPE_test.des_opt
+))
+colnames(MAPE_test.Full2) <- c("MAPE")
+rownames(MAPE_test.Full2) <- c("MAPE Data Latih SES alpha = 0.2", 
+                              "MAPE Data Latih SES alpha = 0.7", 
+                              "MAPE Data Latih DES alpha = 0.2, beta = 0.2", 
+                              "MAPE Data Latih DES alpha = 0.6, beta = 0.3", 
+                              "MAPE Data Uji SES alpha = 0.2", 
+                              "MAPE Data Uji SES alpha = 0.7", 
+                              "MAPE Data Uji SES alpha optimum", 
+                              "MAPE Data Uji DES alpha = 0.2, beta = 0.2", 
+                              "MAPE Data Uji DES alpha = 0.6, beta = 0.3", 
+                              "MAPE Data Uji DES alpha dan beta optimum")
+MAPE_test.Full2
 ```
 
+Berdasarkan data yang diberikan, model *Single Exponential Smoothing* (SES) dengan α = 0.7 dan *Double Exponential Smoothing* (DES) dengan α = 0.6 dan β = 0.3 adalah yang paling akurat pada **data latih**, karena nilai MAPE-nya masing-masing **8.55%** dan **9.45%**, yang mana keduanya berada di bawah ambang batas 10%. Namun, kinerja semua model **SES** dan **DES** menurun drastis pada **data uji**, dengan nilai MAPE yang sangat tinggi (**14.24%** hingga **30.72%**), menunjukkan bahwa metode ini tidak mampu melakukan generalisasi atau memprediksi pergerakan harga Bitcoin yang sangat volatil di luar periode pelatihan.
