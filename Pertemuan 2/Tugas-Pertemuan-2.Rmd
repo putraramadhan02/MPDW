@@ -1,0 +1,634 @@
+---
+title: "**Tugas-Pertemuan-2**"
+author: "Elardian Putera Ramadhan (G1401231042)"
+date: "2025-08-30"
+output:
+  html_document:
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: true
+    highlight: tango
+    code_folding: show
+    toc_depth: 5
+    number_sections: false
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Library/Packages**
+
+```{r}
+library("forecast")
+library("graphics")
+library("TTR")
+library("TSA")
+```
+
+## **Impor Data**
+
+```{r}
+data <- read.csv("C:/Users/Putera Ramadhan/OneDrive/Documents/IPB University/Semester 5/(MPDW) Metode Peramalan Deret Waktu/UTS/Praktikum/MPDW/Pertemuan 1/Data/Reversed Bitcoin Historical Price.csv")
+data$Date <- as.Date(data$Date, format="%m/%d/%Y")
+# Menghapus koma (',') sebelum mengubah tipe data menjadi numerik
+data$Price <- as.numeric(gsub(",", "", data$Price))
+data$Open <- as.numeric(gsub(",", "", data$Open))
+data$High <- as.numeric(gsub(",", "", data$High))
+data$Low <- as.numeric(gsub(",", "", data$Low))
+# Menampilkan 6 baris pertama data
+head(data)
+```
+
+```{r}
+# Ambil data baris ke 253 sampai baris ke 378
+data_subset <- data[253:378, ]
+# Tampilkan data subset
+head(data_subset)
+```
+
+## **Eksplorasi Data**
+
+```{r}
+View(data_subset)
+str(data_subset)
+dim(data_subset)
+```
+
+```{r}
+data_subset.ts <- ts(data_subset$Price)
+summary(data_subset.ts)
+```
+
+```{r}
+ts.plot(data_subset.ts,
+     main = "Plot Deret Waktu Harga Bitcoin",
+     xlab = "Waktu",
+     ylab = "Harga (USD)",
+     col = "blue")
+points(data_subset.ts)
+
+# menyimpan plot
+dev.copy(png, 'Plot/Plot Data Harga Bitcoin.png')
+dev.off()
+```
+
+## **Single Moving Average & Double Moving Average**
+
+### **Pembagian Data**
+
+Pembagian data latih dan data uji dilakukan dengan perbandingan 80% data latih dan 20% data uji.
+
+```{r}
+# Hitung jumlah data
+n <- nrow(data_subset)
+# Tentukan proporsi data latih (80%)
+n_train <- floor(0.8 * n)
+# Bagi data menjadi data latih dan data uji
+training_ma <- data_subset[1:n_train, ]
+testing_ma <- data_subset[(n_train + 1):n, ]
+# Ubah ke dalam format time series
+train_ma.ts <- ts(training_ma$Price)
+test_ma.ts <- ts(testing_ma$Price)
+```
+
+```{r}
+# Eksplorasi keseluruhan data
+plot(data_subset.ts, main = "Plot Deret Waktu Harga Bitcoin",
+     xlab = "Waktu", ylab = "Harga (USD)", col = "red")
+points(data_subset.ts)
+# Eksplorasi data latih
+plot(train_ma.ts, main = "Plot Data Latih Harga Bitcoin",
+     xlab = "Waktu", ylab = "Harga (USD)", col = "blue")
+points(train_ma.ts)
+# Eksplorasi data uji
+plot(test_ma.ts, main = "Plot Data Uji Harga Bitcoin",
+     xlab = "Waktu", ylab = "Harga (USD)", col = "blue")
+points(test_ma.ts)
+```
+
+```{r}
+library(ggplot2)
+ggplot() +
+  geom_line(data = training_ma, aes(x = Date, y = Price, col = "Data Latih"), linewidth = 0.8) +
+  geom_line(data = testing_ma, aes(x = Date, y = Price, col = "Data Uji"), linewidth = 0.8) +
+  labs(title = "Plot Harga Bitcoin: Data Latih dan Data Uji",
+       subtitle = "Visualisasi Tren Harga Dari Waktu ke Waktu",
+       x = "Periode Waktu",
+       y = "Harga (USD)",
+       color = "Keterangan") +
+  scale_colour_manual(name = "Keterangan:",
+                      values = c("Data Latih" = "steelblue", "Data Uji" = "firebrick")) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(), # Hilangkan judul legend agar lebih minimalis
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "gray50"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(), # Hilangkan grid vertikal
+    axis.line = element_line(color = "black")
+  )
+```
+
+### **Single Moving Average (SMA)**
+
+```{r}
+data_subset.sma <- SMA(train_ma.ts, n = 3)
+data_subset.sma
+```
+
+```{r}
+data_subset.ramal_sma <- c(NA, data_subset.sma)
+# Menampilkan hasil peramalan SMA 1 periode ke depan
+data_subset.ramal_sma
+```
+
+```{r}
+#  Forecasting 26 periode ke depan
+data.gab<-cbind(
+  aktual=c(data_subset.ts),
+  pemulusan=c(data_subset.sma,rep(NA,26)),
+  ramalan=c(data_subset.ramal_sma,rep(data_subset.ramal_sma[length(data.ramal)],25)))
+
+data.gab
+```
+
+```{r}
+# Plot hasil peramalan SMA
+ts.plot(data_subset.ts, xlab = "Periode Waktu", ylab = "Harga (USD)", main = "Peramalan Harga Bitcoin dengan Single Moving Average (SMA) N = 3")
+points(data_subset.ts)
+lines(data.gab[,2], col = "blue", lty = 2) # Pemulusan
+lines(data.gab[,3], col = "red", lty = 1)  # Ramalan
+legend("topright", legend = c("Aktual", "Pemulusan (SMA)", "Ramalan (SMA)"), col = c("black", "blue", "red"), lty = c(1, 2, 1))
+```
+
+```{r}
+# Menghitung nilai keakuratan data latih
+error_train.sma <- train_ma.ts - data_subset.ramal_sma[1:length(train_ma.ts)]
+SSE_train.sma <- sum(error_train.sma[4:length(train_ma.ts)]^2)
+MSE_train.sma <- mean(error_train.sma[4:length(train_ma.ts)]^2)
+MAPE_train.sma <- mean(abs(error_train.sma[4:length(train_ma.ts)] / train_ma.ts[4:length(train_ma.ts)]) * 100)
+akurasi_train.sma <- matrix(c(SSE = SSE_train.sma, MSE = MSE_train.sma, MAPE = MAPE_train.sma))
+colnames(akurasi_train.sma) <- c("Akurasi m = 3")
+rownames(akurasi_train.sma) <- c("SSE", "MSE", "MAPE")
+akurasi_train.sma
+```
+
+```{r}
+# Menghitung nilai keakuratan data uji
+error_test.sma <- test_ma.ts - data.gab[,3][(length(train_ma.ts)+1):length(data_subset.ts)]
+SSE_test.sma <- sum(error_test.sma^2)
+MSE_test.sma <- mean(error_test.sma^2)
+MAPE_test.sma <- mean(abs(error_test.sma / test_ma.ts) * 100)
+akurasi_test.sma <- matrix(c(SSE = SSE_test.sma, MSE = MSE_test.sma, MAPE = MAPE_test.sma))
+colnames(akurasi_test.sma) <- c("Akurasi m = 3")
+rownames(akurasi_test.sma) <- c("SSE", "MSE", "MAPE")
+akurasi_test.sma
+```
+
+### **Double Moving Average (DMA)**
+
+```{r}
+dma <- SMA(data_subset.sma, n = 3)
+At <- 2 * data_subset.sma - dma
+Bt <- (2 / (3 - 1)) * (data_subset.sma - dma)
+data_subset.dma <- At + Bt
+data_subset_ramal.dma <- c(NA, data_subset.dma)
+
+t = 1:26
+f = c()
+
+for (i in t) {
+  f[i] = At[length(At)] + Bt[length(Bt)] * (i)
+}
+
+data.gab2 <- cbind(
+  aktual = c(data_subset.ts),
+  pemulusan1 = c(data_subset.sma, rep(NA, 26)),
+  pemulusan2 = c(dma, rep(NA, 26)),
+  At = c(At, rep(NA, 26)),
+  Bt = c(Bt, rep(NA, 26)),
+  ramalan = c(data_subset_ramal.dma, f[-1])
+)
+
+data.gab2
+```
+
+```{r}
+# Plot hasil peramalan DMA
+ts.plot(data_subset.ts, xlab = "Periode Waktu", ylab = "Harga (USD)", main = "Peramalan Harga Bitcoin dengan Double Moving Average (DMA) N = 3")
+points(data_subset.ts)
+lines(data.gab2[,3], col = "green", lty = 2, lwd = 2) # Pemulusan 2
+lines(data.gab2[,6], col = "red", lty = 1, lwd = 2)  # Ramalan
+legend("topright", legend = c("Aktual", "Pemulusan 2 (DMA)", "Ramalan (DMA)"), col = c("black", "green", "red"), lty = c(1, 2, 1))
+```
+
+```{r}
+# Menghitung nilai keakuratan data latih
+error_train.dma <- train_ma.ts - data_subset_ramal.dma[1:length(train_ma.ts)]
+SSE_train.dma <- sum(error_train.dma[6:length(train_ma.ts)]^2)
+MSE_train.dma <- mean(error_train.dma[6:length(train_ma.ts)]^2)
+MAPE_train.dma <- mean(abs(error_train.dma[6:length(train_ma.ts)] / train_ma.ts[6:length(train_ma.ts)]) * 100)
+akurasi_train.dma <- matrix(c(SSE = SSE_train.dma, MSE = MSE_train.dma, MAPE = MAPE_train.dma))
+colnames(akurasi_train.dma) <- c("Akurasi m = 3")
+rownames(akurasi_train.dma) <- c("SSE", "MSE", "MAPE")
+akurasi_train.dma
+```
+
+```{r}
+# Menghitung nilai keakuratan data uji
+error_test.dma <- test_ma.ts - data.gab2[,6][(length(train_ma.ts)+1):length(data_subset.ts)]
+SSE_test.dma <- sum(error_test.dma^2)
+MSE_test.dma <- mean(error_test.dma^2)
+MAPE_test.dma <- mean(abs(error_test.dma / test_ma.ts) * 100)
+akurasi_test.dma <- matrix(c(SSE = SSE_test.dma, MSE = MSE_test.dma, MAPE = MAPE_test.dma))
+colnames(akurasi_test.dma) <- c("Akurasi m = 3")
+rownames(akurasi_test.dma) <- c("SSE", "MSE", "MAPE")
+akurasi_test.dma
+```
+
+## **Single Exponential Smoothing & Double Exponential Smoothing**
+
+### **Pembagian Data**
+
+Pembagian data latih dan data uji dilakukan dengan perbandingan 80% data latih dan 20% data uji.
+
+```{r}
+# Hitung jumlah data
+n <- length(data_subset.ts)
+n_train <- floor(0.8 * n)
+
+# bagi data
+training_es <- data_subset[1:n_train, ]
+testing_es <- data_subset[(n_train + 1):n, ]
+
+# Bagi data menggunakan fungsi 'window' untuk memastikan keselarasan waktu
+train_es.ts <- window(data_subset.ts, end = time(data_subset.ts)[n_train])
+test_es.ts <- window(data_subset.ts, start = time(data_subset.ts)[n_train + 1])
+```
+
+### **Eksplorasi**
+
+```{r}
+# Eksplorasi keseluruhan data
+plot(data_subset.ts, main = "Plot Deret Waktu Harga Bitcoin",
+     xlab = "Waktu", ylab = "Harga (USD)", col = "red")
+points(data_subset.ts)
+# Eksplorasi data latih
+plot(train_es.ts, main = "Plot Data Latih Harga Bitcoin",
+     xlab = "Waktu", ylab = "Harga (USD)", col = "blue")
+points(train_es.ts)
+# Eksplorasi data uji
+plot(test_es.ts, main = "Plot Data Uji Harga Bitcoin",
+     xlab = "Waktu", ylab = "Harga (USD)", col = "blue")
+points(test_es.ts)
+```
+
+```{r}
+library(ggplot2)
+ggplot() +
+  geom_line(data = training_es, aes(x = Date, y = Price, col = "Data Latih"), linewidth = 0.8) +
+  geom_line(data = testing_es, aes(x = Date, y = Price, col = "Data Uji"), linewidth = 0.8) +
+  labs(title = "Plot Harga Bitcoin: Data Latih dan Data Uji",
+       subtitle = "Visualisasi Tren Harga Dari Waktu ke Waktu",
+       x = "Periode Waktu",
+       y = "Harga (USD)",
+       color = "Keterangan") +
+  scale_colour_manual(name = "Keterangan:",
+                      values = c("Data Latih" = "steelblue", "Data Uji" = "firebrick")) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(), # Hilangkan judul legend agar lebih minimalis
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "gray50"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(), # Hilangkan grid vertikal
+    axis.line = element_line(color = "black")
+  )
+```
+
+## **Single Exponential Smoothing (SES)**
+
+```{r}
+# Cara 1 (fungsi SES)
+# Untuk nilai alpha 0.2
+data_subset.ses1 <- ses(train_es.ts, alpha = 0.2, h = 26)
+plot(data_subset.ses1, main = "Peramalan Harga Bitcoin dengan Single Exponential Smoothing (SES)\nAlpha = 0.2", xlab = "Periode Waktu", ylab = "Harga (USD)")
+data_subset.ses1
+# Untuk nilai alpha 0.7
+data_subset.ses2 <- ses(train_es.ts, alpha = 0.7, h = 26)
+plot(data_subset.ses2, main = "Peramalan Harga Bitcoin dengan Single Exponential Smoothing (SES)\nAlpha = 0.7", xlab = "Periode Waktu", ylab = "Harga (USD)")
+data_subset.ses2
+```
+
+```{r}
+autoplot(data_subset.ses1) +
+  autolayer(data_subset.ses1$fitted, series="Fitted", PI=FALSE) +
+  autolayer(data_subset.ses2$fitted, series="Fitted", PI=FALSE) +
+  xlab("Periode Waktu") + ylab("Harga (USD)") +
+  ggtitle("Peramalan Harga Bitcoin dengan Single Exponential Smoothing (SES)\nAlpha = 0.2") +
+  guides(colour=guide_legend(title=" ")) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "gray50"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.line = element_line(color = "black")
+  )
+```
+
+```{r}
+autoplot(data_subset.ses2) + 
+  autolayer(data_subset.ses2$fitted, series="Fitted", PI=FALSE) +
+  xlab("Periode Waktu") + ylab("Harga (USD)") +
+  ggtitle("Peramalan Harga Bitcoin dengan Single Exponential Smoothing (SES)\nAlpha = 0.7") +
+  guides(colour=guide_legend(title=" ")) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(), # Hilangkan judul legend agar lebih minimalis
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "gray50"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(), # Hilangkan grid vertikal
+    axis.line = element_line(color = "black")
+  )
+```
+
+```{r}
+# Cara 2 (fungsi HoltWinters)
+# Untuk nilai alpha 0.2
+data_subset.ses3 <- HoltWinters(train_es.ts, alpha = 0.2, beta = FALSE, gamma = FALSE)
+plot(data_subset.ses3, main = "Peramalan Harga Bitcoin dengan Single Exponential Smoothing (SES)\nAlpha = 0.2", xlab = "Periode Waktu", ylab = "Harga (USD)")
+# Ramalan 26 periode ke depan
+data_subset.ramal.ses3 <- forecast(data_subset.ses3, h = 26)
+data_subset.ramal.ses3
+# Untuk nilai alpha 0.7
+data_subset.ses4 <- HoltWinters(train_es.ts, alpha = 0.7, beta = FALSE, gamma = FALSE)
+plot(data_subset.ses4, main = "Peramalan Harga Bitcoin dengan Single Exponential Smoothing (SES)\nAlpha = 0.7", xlab = "Periode Waktu", ylab = "Harga (USD)")
+# Ramalan 26 periode ke depan
+data_subset.ramal.ses4 <- forecast(data_subset.ses4, h = 26)
+data_subset.ramal.ses4
+```
+
+```{r}
+# Mencari nilai alpha optimum
+# SES
+data_subset.ses_opt <- ses(train_es.ts, h = 26, initial = "optimal", alpha = NULL)
+plot(data_subset.ses_opt, main = "Peramalan Harga Bitcoin dengan Single Exponential Smoothing (SES)\nAlpha Optimum", xlab = "Periode Waktu", ylab = "Harga (USD)")
+data_subset.ses_opt
+# Lambda optimum HoltWinters
+data_subset.ses_opt2 <- HoltWinters(train_es.ts, beta = FALSE, gamma = FALSE)
+data_subset.ses_opt2
+plot(data_subset.ses_opt2, main = "Peramalan Harga Bitcoin dengan Single Exponential Smoothing (SES)\nAlpha Optimum", xlab = "Periode Waktu", ylab = "Harga (USD)")
+# Ramalan 26 periode ke depan
+data_subset.ramal.ses_opt2 <- forecast(data_subset.ses_opt2, h = 26)
+data_subset.ramal.ses_opt2
+```
+
+### **Akurasi Data Latih**
+
+```{r}
+# Keakuratan Metode
+# Pada data training
+
+# SES dengan alpha 0.2
+SSE_train.ses1 <- data_subset.ses3$SSE
+MSE_train.ses1 <- SSE_train.ses1 / length(train_es.ts)
+RMSE_train.ses1 <- sqrt(MSE_train.ses1)
+akurasi_train.ses1 <- matrix(c(SSE = SSE_train.ses1, MSE = MSE_train.ses1, RMSE = RMSE_train.ses1))
+colnames(akurasi_train.ses1) <- c("Akurasi alpha = 0.2")
+rownames(akurasi_train.ses1) <- c("SSE", "MSE", "RMSE")
+akurasi_train.ses1
+
+# SES dengan alpha 0.7
+SSE_train.ses2 <- data_subset.ses4$SSE
+MSE_train.ses2 <- SSE_train.ses2 / length(train_es.ts)
+RMSE_train.ses2 <- sqrt(MSE_train.ses2)
+akurasi_train.ses2 <- matrix(c(SSE = SSE_train.ses2, MSE = MSE_train.ses2, RMSE = RMSE_train.ses2))
+colnames(akurasi_train.ses2) <- c("Akurasi alpha = 0.7")
+rownames(akurasi_train.ses2) <- c("SSE", "MSE", "RMSE")
+akurasi_train.ses2
+```
+
+```{r}
+# Cara manual
+# SES dengan alpha 0.2
+data_subset.fitted.ses1 <- data_subset.ramal.ses3$fitted
+data_subset.sisaan1 <- data_subset.ramal.ses3$residuals
+head(data_subset.sisaan1)
+
+data_subset.resid1 <- training_es$Price - data_subset.ramal.ses3$fitted
+head(data_subset.resid1)
+
+SSE_train.ses1_manual <- sum(data_subset.sisaan1[2:length(train_es.ts)]^2)
+SSE_train.ses1_manual
+
+MSE_train.ses1_manual <- SSE_train.ses1_manual / length(train_es.ts)
+MSE_train.ses1_manual
+
+MAPE_train.ses1_manual <- sum(abs(data_subset.sisaan1[2:length(train_es.ts)] / train_es.ts[2:length(train_es.ts)]) * 100) / length(train_es.ts)
+MAPE_train.ses1_manual
+
+akurasi_train.ses1_manual <- matrix(c(SSE = SSE_train.ses1_manual, MSE = MSE_train.ses1_manual, MAPE = MAPE_train.ses1_manual))
+colnames(akurasi_train.ses1_manual) <- c("Akurasi alpha = 0.2")
+rownames(akurasi_train.ses1_manual) <- c("SSE", "MSE", "MAPE")
+akurasi_train.ses1_manual
+
+# SES dengan alpha 0.7
+data_subset.fitted.ses2 <- data_subset.ramal.ses4$fitted
+data_subset.sisaan2 <- data_subset.ramal.ses4$residuals
+head(data_subset.sisaan2)
+
+data_subset.resid2 <- training_es$Price - data_subset.ramal.ses4$fitted
+head(data_subset.resid2)
+
+SSE_train.ses2_manual <- sum(data_subset.sisaan2[2:length(train_es.ts)]^2)
+SSE_train.ses2_manual
+
+MSE_train.ses2_manual <- SSE_train.ses2_manual / length(train_es.ts)
+MSE_train.ses2_manual
+
+MAPE_train.ses2_manual <- sum(abs(data_subset.sisaan2[2:length(train_es.ts)] / train_es.ts[2:length(train_es.ts)]) * 100) / length(train_es.ts)
+MAPE_train.ses2_manual
+
+akurasi_train.ses2_manual <- matrix(c(SSE = SSE_train.ses2_manual, MSE = MSE_train.ses2_manual, MAPE = MAPE_train.ses2_manual))
+colnames(akurasi_train.ses2_manual) <- c("Akurasi alpha = 0.7")
+rownames(akurasi_train.ses2_manual) <- c("SSE", "MSE", "MAPE")
+akurasi_train.ses2_manual
+```
+
+### **Akurasi Data Uji**
+
+```{r}
+# Jumlah data uji
+n_test <- length(test_es.ts)
+
+# error (ramalan - aktual), samakan panjang dan tipe numeric
+error_test.ses1 <- as.numeric(data_subset.ramal.ses3$mean)[1:n_test] - as.numeric(test_es.ts)
+error_test.ses2 <- as.numeric(data_subset.ramal.ses4$mean)[1:n_test] - as.numeric(test_es.ts)
+error_test.ses_opt <- as.numeric(data_subset.ramal.ses_opt2$mean)[1:n_test] - as.numeric(test_es.ts)
+
+# SSE / MSE / RMSE untuk masing-masing model (abaikan NA)
+SSE_test.ses1 <- sum(error_test.ses1^2, na.rm = TRUE)
+MSE_test.ses1 <- mean(error_test.ses1^2, na.rm = TRUE)
+RMSE_test.ses1 <- sqrt(MSE_test.ses1)
+
+SSE_test.ses2 <- sum(error_test.ses2^2, na.rm = TRUE)
+MSE_test.ses2 <- mean(error_test.ses2^2, na.rm = TRUE)
+RMSE_test.ses2 <- sqrt(MSE_test.ses2)
+
+SSE_test.ses_opt <- sum(error_test.ses_opt^2, na.rm = TRUE)
+MSE_test.ses_opt <- mean(error_test.ses_opt^2, na.rm = TRUE)
+RMSE_test.ses_opt <- sqrt(MSE_test.ses_opt)
+
+# Tabel akurasi
+akurasi_test.ses <- rbind(
+  c(SSE = SSE_test.ses1, MSE = MSE_test.ses1, RMSE = RMSE_test.ses1),
+  c(SSE = SSE_test.ses2, MSE = MSE_test.ses2, RMSE = RMSE_test.ses2),
+  c(SSE = SSE_test.ses_opt, MSE = MSE_test.ses_opt, RMSE = RMSE_test.ses_opt)
+)
+akurasi_test.ses <- as.data.frame(akurasi_test.ses)
+rownames(akurasi_test.ses) <- c("Akurasi alpha = 0.2", "Akurasi alpha = 0.7", "Akurasi alpha optimum")
+akurasi_test.ses
+```
+
+```{r}
+accuracy(data_subset.ramal.ses3, test_es.ts)
+accuracy(data_subset.ramal.ses4, test_es.ts)
+accuracy(data_subset.ramal.ses_opt2, test_es.ts)
+```
+
+## **Double Exponential Smoothing (DES)**
+
+```{r}
+# Lambda = 0.2 dan Gamma = 0.2
+data_subset.des1 <- HoltWinters(train_es.ts, alpha = 0.2, beta = 0.2, gamma = FALSE)
+plot(data_subset.des1, main = "Peramalan Harga Bitcoin dengan Double Exponential Smoothing (DES)\nAlpha = 0.2, Beta = 0.2", xlab = "Periode Waktu", ylab = "Harga (USD)")
+
+# Ramalan 26 periode ke depan
+data_subset.ramal.des1 <- forecast(data_subset.des1, h = 26)
+data_subset.ramal.des1
+
+# Lambda = 0.6 dan Gamma = 0.3
+data_subset.des2 <- HoltWinters(train_es.ts, alpha = 0.6, beta = 0.3, gamma = FALSE)
+plot(data_subset.des2, main = "Peramalan Harga Bitcoin dengan Double Exponential Smoothing (DES)\nAlpha = 0.6, Beta = 0.3", xlab = "Periode Waktu", ylab = "Harga (USD)")
+
+# Ramalan 26 periode ke depan
+data_subset.ramal.des2 <- forecast(data_subset.des2, h = 26)
+data_subset.ramal.des2
+```
+
+```{r}
+plot(data_subset.ts, main = "Peramalan Harga Bitcoin dengan Double Exponential Smoothing (DES)\nAlpha = 0.2, Beta = 0.2", xlab = "Periode Waktu", ylab = "Harga (USD)")
+lines(data_subset.ramal.des1$fitted, col = "blue", lty = 2, lwd = 2) # Pemulusan
+lines(data_subset.ramal.des1$mean, col = "red", lty = 1, lwd = 2)  # Ramalan
+legend("topright", legend = c("Aktual", "Pemulusan (DES)", "Ramalan (DES)"), col = c("black", "blue", "red"), lty = c(1, 2, 1))
+```
+
+```{r}
+plot(data_subset.ts, main = "Peramalan Harga Bitcoin dengan Double Exponential Smoothing (DES)\nAlpha = 0.6, Beta = 0.3", xlab = "Periode Waktu", ylab = "Harga (USD)")
+lines(data_subset.ramal.des2$fitted, col = "green", lty = 2, lwd = 2) # Pemulusan
+lines(data_subset.ramal.des2$mean, col = "red", lty = 1, lwd = 2)  # Ramalan
+legend("topright", legend = c("Aktual", "Pemulusan (DES)", "Ramalan (DES)"), col = c("black", "green", "red"), lty = c(1, 2, 1))
+```
+
+```{r}
+# Mencari nilai alpha dan beta optimum
+data_subset.des_opt <- HoltWinters(train_es.ts, gamma = FALSE)
+data_subset.des_opt
+plot(data_subset.des_opt, main = "Peramalan Harga Bitcoin dengan Double Exponential Smoothing (DES)\nAlpha dan Beta Optimum", xlab = "Periode Waktu", ylab = "Harga (USD)")
+
+# Ramalan 26 periode ke depan
+data_subset.ramal.des_opt <- forecast(data_subset.des_opt, h = 26)
+data_subset.ramal.des_opt
+```
+
+### **Akurasi Data Latih**
+
+```{r}
+# Akurasi Data Latih
+# DES dengan alpha 0.2 dan beta 0.2
+SSE_train.des1 <- data_subset.des1$SSE
+MSE_train.des1 <- SSE_train.des1 / length(train_es.ts)
+Sisaan_train.des1 <- data_subset.ramal.des1$residuals
+head(Sisaan_train.des1)
+
+MAPE_train.des1 <- sum(abs(Sisaan_train.des1[3:length(train_es.ts)] / train_es.ts[3:length(train_es.ts)]) * 100) / length(train_es.ts)
+akurasi_train.des1 <- matrix(c(SSE = SSE_train.des1, MSE = MSE_train.des1, MAPE = MAPE_train.des1))
+colnames(akurasi_train.des1) <- c("Akurasi alpha = 0.2, beta = 0.2")
+rownames(akurasi_train.des1) <- c("SSE", "MSE", "MAPE")
+akurasi_train.des1
+
+# DES dengan alpha 0.6 dan beta 0.3
+SSE_train.des2 <- data_subset.des2$SSE
+MSE_train.des2 <- SSE_train.des2 / length(train_es.ts)
+Sisaan_train.des2 <- data_subset.ramal.des2$residuals
+head(Sisaan_train.des2)
+
+MAPE_train.des2 <- sum(abs(Sisaan_train.des2[3:length(train_es.ts)] / train_es.ts[3:length(train_es.ts)]) * 100) / length(train_es.ts)
+akurasi_train.des2 <- matrix(c(SSE = SSE_train.des2, MSE = MSE_train.des2, MAPE = MAPE_train.des2))
+colnames(akurasi_train.des2) <- c("Akurasi alpha = 0.6, beta = 0.3")
+rownames(akurasi_train.des2) <- c("SSE", "MSE", "MAPE")
+akurasi_train.des2
+```
+
+### **Akurasi Data Uji**
+
+```{r}
+# Akurasi Data Uji
+selisih_test.des1 <- as.numeric(data_subset.ramal.des1$mean)[1:n_test] - as.numeric(test_es.ts)
+selisih_test.des1
+
+SSE_test.des1 <- sum(selisih_test.des1^2)
+MSE_test.des1 <- SSE_test.des1 / n_test
+MAPE_test.des1 <- sum(abs(selisih_test.des1 / test_es.ts) * 100) / n_test
+
+selisih_test.des2 <- as.numeric(data_subset.ramal.des2$mean)[1:n_test] - as.numeric(test_es.ts)
+selisih_test.des2
+
+SSE_test.des2 <- sum(selisih_test.des2^2)
+MSE_test.des2 <- SSE_test.des2 / n_test
+MAPE_test.des2 <- sum(abs(selisih_test.des2 / test_es.ts) * 100) / n_test
+
+selisih_test.des_opt <- as.numeric(data_subset.ramal.des_opt$mean)[1:n_test] - as.numeric(test_es.ts)
+selisih_test.des_opt
+
+SSE_test.des_opt <- sum(selisih_test.des_opt^2)
+MSE_test.des_opt <- SSE_test.des_opt / n_test
+MAPE_test.des_opt <- sum(abs(selisih_test.des_opt / test_es.ts) * 100) / n_test
+
+akurasi_test.des <- rbind(
+  c(SSE = SSE_test.des1, MSE = MSE_test.des1, MAPE = MAPE_test.des1),
+  c(SSE = SSE_test.des2, MSE = MSE_test.des2, MAPE = MAPE_test.des2),
+  c(SSE = SSE_test.des_opt, MSE = MSE_test.des_opt, MAPE = MAPE_test.des_opt)
+)
+akurasi_test.des <- as.data.frame(akurasi_test.des)
+rownames(akurasi_test.des) <- c("Akurasi alpha = 0.2, beta = 0.2", "Akurasi alpha = 0.6, beta = 0.3", "Akurasi alpha dan beta optimum")
+akurasi_test.des
+```
+
+### **Perbandingan SES dan DES**
+
+```{r}
+MSE_test.Full <- matrix(c(
+  MSE_test.ses1, MSE_test.ses2, MSE_test.ses_opt,
+  MSE_test.des1, MSE_test.des2, MSE_test.des_opt
+), nrow = 2, byrow = TRUE)
+colnames(MSE_test.Full) <- c("Alpha = 0.2", "Alpha = 0.7", "Alpha & Beta Optimum")
+rownames(MSE_test.Full) <- c("Single Exponential Smoothing (SES)", "Double Exponential Smoothing (DES)")
+MSE_test.Full
+```
+
