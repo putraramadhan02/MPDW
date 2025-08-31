@@ -156,7 +156,7 @@ data_subset.ramal_sma
 data.gab<-cbind(
   aktual=c(data_subset.ts),
   pemulusan=c(data_subset.sma,rep(NA,26)),
-  ramalan=c(data_subset.ramal_sma,rep(data_subset.ramal_sma[length(data.ramal)],25)))
+  ramalan=c(data_subset.ramal_sma,rep(data_subset.ramal_sma[length(data_subset.ramal_sma)],25)))
 
 data.gab
 ```
