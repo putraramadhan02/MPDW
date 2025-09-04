@@ -133,8 +133,8 @@ training.ts<-ts(training)
 testing.ts<-ts(testing, start=13)
 
 # eksplorasi data
-plot(data.ts, col="red",main="Plot semua data")
-points(data.ts)
+plot(data_ts, col="red",main="Plot semua data")
+points(data_ts)
 
 plot(training.ts, col="blue",main="Plot data training")
 points(training.ts)
