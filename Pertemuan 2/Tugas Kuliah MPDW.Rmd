@@ -445,9 +445,9 @@ Berdasarkan perbandingan nilai **Sum of Squared Errors (SSE)**, yang mengukur to
 
 ## **Kesimpulan**
 
-Berdasarkan analisis yang telah dilakukan, dapat disimpulkan beberapa hal sebagai berikut:
-1.  Data IPM Provinsi Banten periode 2010-2024 menunjukkan tren positif yang kuat, mengindikasikan peningkatan IPM dari tahun ke tahun tanpa adanya pola musiman.
-2.  Metode peramalan dan pemulusan yang paling akurat untuk data ini adalah **Double Exponential Smoothing (DES)**, yang menunjukkan nilai SSE, MSE, dan MAPE terendah dibandingkan dengan metode DMA.
-3.  Model regresi linier sederhana yang dibangun menunjukkan hubungan positif yang signifikan antara tahun dan IPM, dengan nilai $R^2$ sebesar 98.78%, namun model awal menunjukkan adanya autokorelasi pada sisaan.
-4.  Penanganan autokorelasi menggunakan metode **Hildreth-Lu** terbukti paling efektif, menghasilkan model dengan nilai SSE terendah (0.2795481) dibandingkan dengan metode Cochrane-Orcutt dan model awal.
+Berdasarkan analisis yang telah dilakukan, dapat disimpulkan beberapa hal sebagai berikut:  
+1.  Data IPM Provinsi Banten periode 2010-2024 menunjukkan tren positif yang kuat, mengindikasikan peningkatan IPM dari tahun ke tahun tanpa adanya pola musiman.  
+2.  Metode peramalan dan pemulusan yang paling akurat untuk data ini adalah **Double Exponential Smoothing (DES)**, yang menunjukkan nilai SSE, MSE, dan MAPE terendah dibandingkan dengan metode DMA.  
+3.  Model regresi linier sederhana yang dibangun menunjukkan hubungan positif yang signifikan antara tahun dan IPM, dengan nilai $R^2$ sebesar 98.78%, namun model awal menunjukkan adanya autokorelasi pada sisaan.  
+4.  Penanganan autokorelasi menggunakan metode **Hildreth-Lu** terbukti paling efektif, menghasilkan model dengan nilai SSE terendah (0.2795481) dibandingkan dengan metode Cochrane-Orcutt dan model awal.  
 5.  Secara keseluruhan, analisis ini menegaskan pentingnya pemilihan metode yang tepat dalam peramalan dan penanganan autokorelasi untuk mendapatkan model yang akurat dan dapat diandalkan dalam konteks pembangunan manusia di Provinsi Banten.
