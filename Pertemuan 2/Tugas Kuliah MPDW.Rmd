@@ -208,7 +208,6 @@ Setelah melakukan peramalan, data yang telah dimasukkan kemudian dieksplorasi. E
 
 ```{r}
 # Scatter plot IPM terhadap Tahun
-library(ggplot2)
 ggplot(data, aes(x = Tahun, y = IPM)) +
   geom_point(color = "blue", size = 3) +
   geom_smooth(method = "lm", se = FALSE, color = "red") +
