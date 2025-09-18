@@ -182,7 +182,7 @@ Berdasarkan hasil peramalan, didapatkan nilai MAPE sebesar **20.45%** untuk data
 ```{r}
 ardl_orders <- ardlBoundOrders(data = data.frame(train), ic = "AIC", formula = Yt ~ Xt, max.p=25, max.q=25)
 print(ardl_orders$Stat.table)
-cat("\nPeriksa tabel di atas untuk nilai AIC terendah guna menentukan p dan q optimum.\n")
+cat("Periksa tabel di atas untuk nilai AIC terendah guna menentukan p dan q optimum.")
 
 opt_p_ardl <- 7
 opt_q_ardl <- 22
@@ -191,7 +191,10 @@ opt_q_ardl <- 22
 ### **Pemodelan ARDL dengan Lag Optimum (p,q)**
 
 ```{r}
-model.ardl <- ardlDlm(x = train$Xt, y = train$Yt, p = opt_p_ardl, q = opt_q_ardl)
+model.ardl <- ardlDlm(formula = Yt ~ Xt, 
+                      data = data.frame(train), 
+                      p = opt_p_ardl, 
+                      q = opt_q_ardl)
 summary(model.ardl)
 ```
 
@@ -223,7 +226,7 @@ summary(model_dyn_dlm)
 
 # Pastikan q > 0 untuk model ARDL
 if (opt_q_ardl > 0){
-    model_dyn_ardl <- dynlm(Yt ~ L(Xt, 0:opt_p) + L(Yt, 1:opt_q_ardl), data = train.ts)
+    model_dyn_ardl <- dynlm(Yt ~ L(Xt, 0:opt_p_ardl) + L(Yt, 1:opt_q_ardl), data = train.ts)
     summary(model_dyn_ardl)
 }
 ```
