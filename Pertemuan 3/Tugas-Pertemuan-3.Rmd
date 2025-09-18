@@ -184,7 +184,6 @@ ardl_orders <- ardlBoundOrders(data = data.frame(train), ic = "AIC", formula = Y
 print(ardl_orders$Stat.table)
 cat("\nPeriksa tabel di atas untuk nilai AIC terendah guna menentukan p dan q optimum.\n")
 
-# GANTI NILAI INI SECARA MANUAL berdasarkan tabel AIC di atas
 opt_p_ardl <- 7
 opt_q_ardl <- 22
 ```
