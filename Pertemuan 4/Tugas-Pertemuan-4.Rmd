@@ -1,0 +1,514 @@
+---
+title: "Tugas-Pertemuan-4"
+author: "Elardian Putera Ramadhan (G1401231042)"
+date: "2025-09-24"
+output:
+  html_document:
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: true
+    highlight: tango
+    code_folding: show
+    toc_depth: 5
+    number_sections: false
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ***Packages***
+
+```{r}
+# Install library jika belum ada
+# install.packages("TSA")
+
+# Muat library
+library(TSA)
+```
+
+------------------------------------------------------------------------
+
+## **Proses MA(2)**
+
+Proses MA(2) dapat dituliskan sebagai berikut:
+
+$$Y_t = e_t - \theta_1e_{t-1} - \theta_2e_{t-2}$$
+
+Akan dibangkitkan proses MA(2) dengan $\theta_1$ = 0.4 dan $\theta_2$ = 0.6 sebanyak 300 data.
+
+### **Pembangkitan Data MA(2)**
+
+Pertama, bangkitkan *white noise* sebagai dasar. Karena proses MA(2) memerlukan $e_{t−1}$ dan $e_{t−2}$, maka perlu membangkitkan *white noise* sedikit lebih banyak dari 300.
+
+```{r}
+# Menentukan parameter
+n <- 300
+theta1 <- 0.4
+theta2 <- 0.6
+set.seed(1234) # Untuk hasil yang konsisten
+
+# Bangkitkan white noise
+wn <- rnorm(n + 2)
+```
+
+#### **1. Pembangkitan Manual**
+
+Nilai-nilai data dibangkitkan menggunakan loop sesuai rumus MA(2).
+
+```{r}
+# Siapkan vektor kosong untuk menampung hasil
+ma2_manual <- numeric(n)
+
+# Loop untuk membangkitkan data
+for(i in 3:(n + 2)){
+  ma2_manual[i-2] <- wn[i] + theta1 * wn[i-1] + theta2 * wn[i-2]
+}
+
+# Ubah menjadi objek time series
+ma2_manual <- ts(ma2_manual)
+ma2_manual
+```
+
+#### **2. Pembangkitan dengan `arima.sim`**
+
+Cara yang lebih praktis adalah menggunakan fungsi `arima.sim()`
+
+```{r}
+set.seed(1234) # Gunakan seed yang sama untuk perbandingan
+ma2_sim <- arima.sim(model = list(order = c(0, 0, 2), ma = c(theta1, theta2)), n = n)
+ma2_sim
+```
+
+### **Karakteristik MA(2)**
+
+#### **1. Plot Time Series**
+
+```{r}
+ts.plot(ma2_manual, main = "Plot Time Series MA(2)", ylab = "Yt")
+```
+
+Berdasarkan plot, data terlihat **stasioner** karena bergerak di sekitar rataan yang konstan (sekitar 0) dengan ragam yang juga konstan.
+
+#### **2. Plot ACF, PACF, dan EACF**
+
+```{r}
+# Plot ACF
+acf(ma2_manual, main="ACF dari MA(2)")
+```
+
+Berdasarkan plot ACF tersebut, terlihat bahwa plot ACF *cuts off* di lag kedua
+
+```{r}
+# Plot PACF
+pacf(ma2_manual, main="PACF dari MA(2)")
+```
+
+Berdasarkan plot PACF tersebut, terlihat bahwa plot PACF cenderung *tails off* dan membentuk gelombang sinus.
+
+```{r}
+# Plot EACF
+eacf(ma2_manual)
+```
+
+Berdasarkan pola segitiga nol pada plot EACF, terlihat bahwa segitiga nol berada pada ordo AR(0) dan ordo MA(2)
+
+#### **3. *Scatterplot* Antar Lag**
+
+Untuk membuat *scatterplot*, perlu dibuat vektor data yang sudah digeser (lag).
+
+##### **Korelasi antara** $Y_t$ **dengan** $Y_{t-1}$
+
+```{r}
+# Yt
+yt <- ma2_manual[-1]
+# Yt-1
+yt_1 <- ma2_manual[-n]
+
+plot(y=yt, x=yt_1, main="Scatterplot Yt vs Y(t-1) pada MA(2)")
+```
+
+Scatterplot ini menggambarkan hubungan antara nilai deret waktu pada suatu saat ($Y_t$) dengan nilainya pada satu periode sebelumnya ($Y_{t-1}$). Pola titik-titik yang menyebar dengan kecenderungan sedikit menanjak dari kiri bawah ke kanan atas menunjukkan adanya **korelasi linear positif yang lemah**. Ini berarti ada tendensi bahwa jika nilai pada periode sebelumnya tinggi, maka nilai pada periode saat ini juga cenderung agak tinggi, begitu pula sebaliknya. Namun, sebaran titik yang sangat lebar menandakan bahwa hubungan ini tidak kuat dan mengandung banyak variasi acak, yang konsisten dengan karakteristik proses Moving Average (MA) di mana korelasi ada tetapi tidak deterministik.
+
+```{r}
+cor(yt, yt_1)
+```
+
+Nilai korelasi dari simulasi ini kita bandingkan dengan perhitungan teoritisnya:
+
+$$
+\rho_1 = \frac{-\theta_1 + \theta_1\theta_2}{1 + \theta_1^2 + \theta_2^2} = \frac{-(-0.4) + (-0.4)⋅(-0.6)}{1 + (-0.4)^2 + (-0.6)^2} = \frac{0.64}{1.52} \approx 0.421
+$$
+
+Hasil korelasi dari data bangkitan (`cor(yt, yt_1)`) sangat mendekati nilai teoritis.
+
+##### **Korelasi antara** $Y_t$ **dengan** $Y_{t-2}$
+
+```{r}
+# Yt
+yt <- ma2_manual[-c(1,2)]
+# Yt-2
+yt_2 <- ma2_manual[-c(n-1, n)]
+
+plot(y=yt, x=yt_2, main="Scatterplot Yt vs Y(t-2) pada MA(2)")
+```
+
+Scatterplot ini memvisualisasikan hubungan antara nilai deret waktu saat ini ($Y_t$) dengan nilainya dua periode sebelumnya ($Y_{t-2}$). Pola sebaran titik-titik ini menunjukkan adanya **korelasi linear positif yang sangat lemah**, bahkan lebih lemah dari hubungan pada lag 1. Meskipun ada sedikit kecenderungan menanjak, sebaran datanya sangat acak dan mendekati pola sirkular, menandakan hubungan yang nyaris tidak signifikan. Hal ini sangat sesuai dengan model **MA(2)**, di mana kita berharap melihat korelasi yang signifikan pada lag 2 (seperti yang ditunjukkan oleh plot ACF), tetapi pengaruhnya sudah menurun dan akan hilang sepenuhnya pada lag berikutnya.
+
+```{r}
+cor(yt, yt_2)
+```
+
+Nilai korelasi simulasi dibandingkan dengan teori:
+
+$$
+\rho_2 = \frac{-\theta_2}{1 + \theta_1^2 + \theta_2^2} = \frac{-(-0.6)}{1 + (-0.4)^2 + (-0.6)^2} = \frac{0.6}{1.52} \approx 0.395
+$$
+
+Hasilnya juga sangat mendekati.
+
+##### **Korelasi antara** $Y_t$ **dengan** $Y_{t-3}$
+
+```{r}
+# Yt
+yt <- ma2_manual[-c(1,2,3)]
+# Yt-3
+yt_3 <- ma2_manual[-c(n-2, n-1, n)]
+
+plot(y=yt, x=yt_3, main="Scatterplot Yt vs Y(t-3) pada MA(2)")
+```
+
+Scatterplot ini menampilkan hubungan antara nilai deret waktu saat ini ($Y_t$) dan nilainya tiga periode sebelumnya ($Y_{t-3}$). Pola titik-titik yang tersebar sepenuhnya acak dan membentuk awan sirkular (bundar) dengan jelas menunjukkan **tidak adanya korelasi linear** sama sekali. Ini berarti, nilai dari tiga periode lalu ($Y_{t-3}$) tidak memberikan informasi statistik apa pun untuk memprediksi nilai saat ini ($Y_t$). Plot inilah yang menjadi bukti visual paling kuat untuk mengonfirmasi model **MA(2)**, karena ini menunjukkan secara gamblang bagaimana korelasi "terpotong" (*cuts off*) menjadi nol persis setelah lag ke-2, sesuai dengan teori pada plot ACF.
+
+```{r}
+cor(yt, yt_3)
+```
+
+Secara teori, korelasi untuk lag \> q (dalam hal ini, lag \> 2) adalah 0. Hasil cor(yt, yt_3) akan menghasilkan nilai yang sangat kecil dan tidak signifikan (mendekati 0).
+
+------------------------------------------------------------------------
+
+## **Proses AR(2)**
+
+Proses AR(2) dapat dituliskan sebagai berikut:
+
+$$
+Y_t = \phi_1Y_{t-1} + \phi_2Y_{t-2} + e_t
+$$
+
+akan dibangkitkan proses AR(2) dengan $\phi_1$ = 0.5 dan $\phi_2$ = 0.2 sebanyak 300 data.
+
+### **Pembangkitan Data AR(2)**
+
+Gunakan *white noise* yang baru.
+
+```{r}
+# Menentukan parameter
+n <- 300
+phi1 <- 0.5
+phi2 <- 0.2
+set.seed(1234)
+
+# Bangkitkan white noise
+wn <- rnorm(n)
+```
+
+#### **1. Pembangkitan Manual**
+
+Untuk proses AR, perlu diinisialisasi nilai-nilai awal dari $Y_t$. Kita bisa menganggapnya 0.
+
+```{r}
+# Siapkan vektor
+ar2_manual <- numeric(n)
+
+# Inisialisasi (nilai awal bisa dianggap 0 atau dari white noise)
+ar2_manual[1] <- wn[1]
+ar2_manual[2] <- phi1 * ar2_manual[1] + wn[2]
+
+# Loop untuk membangkitkan data
+for(i in 3:n){
+   ar2_manual[i] <- phi1 * ar2_manual[i-1] + phi2 * ar2_manual[i-2] + wn[i]
+}
+
+ar2_manual <- ts(ar2_manual)
+ar2_manual
+```
+
+#### **2. Pembangkitan dengan `arima.sim`**
+
+```{r}
+set.seed(1234)
+ar2_sim <- arima.sim(model = list(order = c(2,0,0), ar = c(phi1, phi2)), n = n)
+ar2_sim
+```
+
+### **Karakteristik AR(2)**
+
+#### **1. Plot Time Series**
+
+```{r}
+ts.plot(ar2_manual, main="Plot Time Series AR(2)", ylab="Yt")
+```
+
+Data terlihat **stasioner**. Syarat stasioneritas untuk AR(2) terpenuhi ($|\phi_2| < 1$, $\phi_1+\phi_2 < 1$, $\phi_2-\phi_1 < 1$).
+
+#### **2. Plot ACF, PACF, dan EACF**
+
+```{r}
+acf(ar2_manual, main="ACF dari AR(2)")
+```
+
+Berdasarkan plot ACF tersebut terlihat bahwa plot ACF cenderung *tails off* dan cenderung membentuk pola grafik sinus
+
+```{r}
+pacf(ar2_manual, main="PACF dari AR(2)")
+```
+
+Berdasarkan plot PACF tersebut, terlihat bahwa plot PACF *cuts off* pada lag kedua, sejalan dengan teori yang ada
+
+```{r}
+eacf(ar2_manual)
+```
+
+Berdasarkan pola segitiga nol pada plot EACF, terlihat bahwa segitiga nol berada pada ordo AR(2) dan ordo MA(0)
+
+#### **3. *Scatterplot* Antar Lag**
+
+##### **Korelasi antara** $Y_t$ **dengan** $Y_{t−1}$
+
+```{r}
+# Yt
+yt <- ar2_manual[-1]
+# Yt-1
+yt_1 <- ar2_manual[-n]
+
+plot(y=yt, x=yt_1, main="Scatterplot Yt vs Y(t-1) pada AR(2)")
+```
+
+Scatterplot ini menggambarkan hubungan antara nilai deret waktu saat ini ($Y_t$) dengan nilai pada satu periode sebelumnya ($Y_{t-1}$) untuk sebuah proses **AR(2)**. Pola titik-titik yang membentuk awan lonjong dan menanjak dengan jelas dari kiri bawah ke kanan atas menunjukkan adanya **korelasi linear positif yang moderat hingga kuat**. Ini berarti nilai pada periode sebelumnya memiliki pengaruh yang cukup besar dan langsung terhadap nilai saat ini; jika nilai $Y_{t-1}$ tinggi, maka nilai $Y_t$ juga cenderung tinggi. Struktur linear yang jelas seperti ini adalah ciri khas dari proses Autoregressive (AR), yang menandakan adanya dependensi yang kuat pada nilai masa lalunya.
+
+```{r}
+cor(yt, yt_1)
+```
+
+Nilai korelasi dari simulasi ini kita bandingkan dengan perhitungan teoritis (Persamaan Yule-Walker):
+
+$$
+\rho_1 = \frac{\phi_1}{1 - \phi_2} = \frac{0.5}{1 - 0.2} = \frac{0.5}{0.8} = 0.625
+$$
+
+Hasil korelasi dari data (`cor(yt, yt_1)`) akan sangat mendekati 0.625.
+
+##### **Korelasi antara** $Y_t$ **dengan** $Y_{t−2}$
+
+```{r}
+# Yt
+yt <- ar2_manual[-c(1,2)]
+# Yt-2
+yt_2 <- ar2_manual[-c(n-1, n)]
+
+plot(y=yt, x=yt_2, main="Scatterplot Yt vs Y(t-2) pada AR(2)")
+```
+
+Scatterplot ini menampilkan hubungan antara nilai deret waktu saat ini ($Y_t$) dengan nilainya dua periode sebelumnya ($Y_{t-2}$) untuk proses **AR(2)**. Pola yang terlihat cukup unik; secara keseluruhan, awan titik menunjukkan adanya **korelasi positif** yang tampaknya lebih lemah dan lebih tersebar dibandingkan pada lag 1. Akan tetapi, yang paling menonjol adalah adanya **garis linear yang sangat jelas dan padat** di tengah awan data, yang menandakan adanya hubungan yang sangat kuat untuk subset data tertentu. Struktur kompleks ini adalah hasil dari pengaruh gabungan dari lag 1 dan lag 2 pada nilai saat ini ($Y_t$), yang merupakan karakteristik dari model autoregressive orde yang lebih tinggi dari satu.
+
+```{r}
+cor(yt, yt_2)
+```
+
+Nilai korelasi simulasi dibandingkan dengan teori:
+
+$$
+\rho_2 = \phi_1\rho_1 + \phi_2 = (0.5⋅0.625) + 0.2 = 0.3125 + 0.2 = 0.5125
+$$
+
+Hasilnya juga akan sangat mendekati.
+
+##### **Korelasi antara** $Y_t$ **dengan** $Y_{t−3}$
+
+```{r}
+# Yt
+yt <- ar2_manual[-c(1,2,3)]
+# Yt-3
+yt_3 <- ar2_manual[-c(n-2, n-1, n)]
+
+plot(y=yt, x=yt_3, main="Scatterplot Yt vs Y(t-3) pada AR(2)")
+```
+
+Scatterplot ini menampilkan hubungan antara nilai saat ini ($Y_t$) dengan nilainya tiga periode sebelumnya ($Y_{t-3}$) untuk sebuah proses **AR(2)**. Pola yang terlihat kembali menunjukkan struktur ganda: awan titik yang tersebar luas menandakan adanya **korelasi positif yang lemah secara keseluruhan**, sementara di dalamnya terdapat garis linear padat yang menunjukkan hubungan yang kuat. Penting untuk dipahami bahwa dalam model AR(2), tidak ada pengaruh *langsung* dari $Y_{t-3}$ ke $Y_t$. Korelasi yang tampak di sini adalah korelasi tidak langsung yang diwariskan melalui hubungan variabel-variabel ini dengan $Y_{t-1}$ dan $Y_{t-2}$, yang merupakan ciri khas dari plot ACF proses AR yang meluruh secara bertahap (*tails off*).
+
+```{r}
+cor(yt, yt_3)
+```
+
+Nilai korelasi teoritisnya adalah:
+
+$$
+\rho_3 = \phi_1\rho_2 + \phi_2\rho_1 = (0.5 ⋅ 0.5125) + (0.2 ⋅ 0.625) = 0.25625 + 0.125 = 0.38125
+$$
+
+Korelasi dari data bangkitan akan mendekati nilai ini.
+
+---
+
+## **Proses ARMA(2,2)**
+
+Proses ARMA(2,2) dapat dituliskan sebagai berikut:
+
+$$
+Y_t = \phi_1Y_{t-1} + \phi_2Y_{t-2} + e_t - \theta_1e_{t-1} - \theta_2e_{t-2}
+$$
+
+Akan digunakan parameter yang sama: $\phi_1$ = 0.5, $\phi_2$ = 0.2 dan $\theta_1$ = 0.4, $\theta_2$ = 0.6.
+
+### **Pembangkitan Data ARMA(2,2)**
+
+```{r}
+# Menentukan parameter
+n <- 300
+set.seed(1234)
+phi_vec <- c(0.5, 0.2)
+theta_vec <- c(0.4, 0.6)
+
+# Bangkitkan white noise
+wn <- rnorm(n + 2)
+```
+
+#### **1. Pembangkitan Manual**
+
+Pembangkitan manual ARMA lebih kompleks karena melibatkan nilai $Y$ dan $e$ sebelumnya.
+
+```{r}
+arma22_manual <- numeric(n)
+
+# Inisialisasi
+# Anggap nilai Y dan epsilon sebelum t=1 adalah 0
+arma22_manual[1] <- phi_vec[1]*0 + phi_vec[2]*0 + wn[3] + theta_vec[1]*wn[2] + theta_vec[2]*wn[1]
+arma22_manual[2] <- phi_vec[1]*arma22_manual[1] + phi_vec[2]*0 + wn[4] + theta_vec[1]*wn[3] + theta_vec[2]*wn[2]
+
+# Loop
+for(i in 3:n){
+   arma22_manual[i] <- phi_vec[1]*arma22_manual[i-1] + phi_vec[2]*arma22_manual[i-2] + 
+                     wn[i+2] + theta_vec[1]*wn[i+1] + theta_vec[2]*wn[i]
+}
+arma22_manual <- ts(arma22_manual)
+arma22_manual
+```
+
+#### **2. Pembangkitan dengan `arima.sim`**
+
+```{r}
+set.seed(1234)
+arma22_sim <- arima.sim(model = list(order = c(2,0,2), ar = phi_vec, ma = theta_vec), n = n)
+arma22_sim
+```
+
+### **Karakteristik ARMA(2,2)**
+
+#### **1. Plot Time Series**
+
+```{r}
+par(mfrow = c(1, 2))
+ts.plot(arma22_manual, main="Plot Time Series ARMA(2,2) Manual", ylab="Yt")
+ts.plot(arma22_sim, main="Plot Time Series ARMA(2,2) Arima.sim", ylab="Yt")
+par(mfrow = c(1, 1))
+```
+
+Data terlihat stasioner karena komponen AR-nya stasioner.
+
+#### **2. Plot ACF, PACF, dan EACF**
+
+```{r}
+par(mfrow = c(1, 2))
+acf(arma22_manual, main="Plot Time Series ARMA(2,2) Manual", ylab="Yt")
+acf(arma22_sim, main="Plot Time Series ARMA(2,2) Arima.sim", ylab="Yt")
+par(mfrow = c(1, 1))
+```
+
+Berdasarkan plot ACF tersebut, terlihat bahwa model ARMA(2,2) hasil simulasi memiliki plot ACF yang *tails off*, sesuai dengan teori yang ada
+
+```{r}
+par(mfrow = c(1, 2))
+pacf(arma22_manual, main="Plot Time Series ARMA(2,2) Manual", ylab="Yt")
+pacf(arma22_sim, main="Plot Time Series ARMA(2,2) Arima.sim", ylab="Yt")
+par(mfrow = c(1, 1))
+```
+
+Berdasarkan plot PACF tersebut, terlihat bahwa model ARMA(2,2) hasil simulasi memiliki plot PACF yang *tails off*, sesuai dengan teori
+
+```{r}
+eacf(arma22_manual)
+eacf(arma22_sim)
+```
+
+Berdasarkan pola segitiga nol pada plot EACF, terlihat bahwa segitiga nol berada pada ordo AR(2) dan ordo MA(2)
+
+#### **3. *Scatterplot* dan Korelasi Antar Lag**
+
+Perhitungan teoritis ACF untuk model ARMA campuran cukup rumit. Dapat digunakan fungsi ARMAacf untuk mendapatkan nilai teoritisnya dan membandingkannya.
+
+##### **Korelasi antara** $Y_t$ **dengan** $Y_{t−1}$
+
+```{r}
+# Yt
+yt <- arma22_manual[-1]
+# Yt-1
+yt_1 <- arma22_manual[-n]
+
+plot(y=yt, x=yt_1, main="Scatterplot Yt vs Y(t-1) pada ARMA(2,2)")
+```
+
+Scatterplot ini menampilkan hubungan antara nilai deret waktu saat ini ($Y_t$) dengan nilai pada satu periode sebelumnya ($Y_{t-1}$) untuk sebuah proses **ARMA(2,2)**. Pola titik-titik yang membentuk awan lonjong menanjak dengan jelas dari kiri bawah ke kanan atas menunjukkan adanya **korelasi linear positif yang kuat**. Struktur linear yang kuat ini terutama didorong oleh komponen **Autoregressive (AR)** dalam model, di mana nilai masa lalu secara langsung memengaruhi nilai saat ini. Sementara itu, komponen **Moving Average (MA)** menambahkan variasi acak pada hubungan tersebut, yang terlihat dari sebaran titik-titik di sekitar tren linear utama.
+
+```{r}
+cor(yt, yt_1)
+```
+
+##### **Korelasi antara** $Y_t$ **dengan** $Y_{t−2}$
+
+```{r}
+# Yt
+yt <- arma22_manual[-c(1,2)]
+# Yt-2
+yt_2 <- arma22_manual[-c(n-1, n)]
+plot(y=yt, x=yt_2, main="Scatterplot Yt vs Y(t-2) pada ARMA(2,2)")
+```
+
+Scatterplot ini menampilkan hubungan antara nilai deret waktu saat ini ($Y_t$) dengan nilainya dua periode sebelumnya ($Y_{t-2}$) untuk sebuah proses **ARMA(2,2)**. Pola titik-titik yang tersebar dan cenderung menanjak ke kanan atas menunjukkan adanya **korelasi linear positif yang moderat**. Hubungan ini terutama disebabkan oleh komponen **Autoregressive orde 2 (AR(2))** dalam model, yang menciptakan dependensi langsung terhadap nilai dari dua periode sebelumnya. Visualisasi ini konsisten dengan sifat model ARMA di mana korelasi cenderung meluruh atau melemah secara bertahap (*tailing off*), sehingga kita masih dapat melihat adanya struktur hubungan yang jelas pada lag 2, meskipun mungkin tidak sekuat pada lag 1.
+
+```{r}
+cor(yt, yt_2)
+```
+
+##### **Korelasi antara** $Y_t$ **dengan** $Y_{t-3}$
+
+```{r}
+# Yt
+yt <- arma22_manual[-c(1,2,3)]
+# Yt-3
+yt_3 <- arma22_manual[-c(n-2, n-1, n)]
+plot(y=yt, x=yt_3, main="Scatterplot Yt vs Y(t-3) pada ARMA(2,2)")
+```
+
+Scatterplot ini menampilkan hubungan antara nilai deret waktu saat ini ($Y_t$) dengan nilainya tiga periode sebelumnya ($Y_{t-3}$) untuk sebuah proses **ARMA(2,2)**. Pola titik-titik yang sangat tersebar dengan hanya sedikit kecenderungan menanjak menunjukkan adanya **korelasi linear positif yang sangat lemah**. Visualisasi ini secara efektif mengilustrasikan sifat khas dari model ARMA, di mana autokorelasinya **meluruh atau melemah secara bertahap** (*tails off*). Berbeda dengan model MA murni di mana korelasi akan terpotong habis, 'memori' pada proses ARMA memudar secara perlahan, sehingga jejak hubungan yang lemah masih dapat terdeteksi pada lag yang lebih jauh.
+
+```{r}
+cor(yt, yt_3)
+```
+
+##### **Perbandingan dengan Nilai Teoritis**
+
+```{r}
+# Menghitung ACF teoritis hingga lag 3
+acf_teori_arma <- ARMAacf(ar = phi_vec, ma = theta_vec, lag.max = 3)
+print(acf_teori_arma)
+```
+
+Dapat dibandingkan nilai korelasi dari cor() pada setiap lag dengan hasil dari fungsi ARMAacf (dimulai dari indeks ke-2 untuk lag 1, dan seterusnya). Nilainya akan sangat berdekatan.
