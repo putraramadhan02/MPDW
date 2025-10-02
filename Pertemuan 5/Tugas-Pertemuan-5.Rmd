@@ -210,8 +210,6 @@ cat("Selang Kepercayaan 95% untuk Lambda: (", round(ci_lower, 2), ",", round(ci_
 
 Gambar di atas menunjukkan nilai $\lambda$ optimum (rounded value) sebesar **1** dan selang kepercayaan 95% nilai memiliki batas bawah **0.8** dan batas atas **1.2**. Selang tersebut memuat nilai satu sehingga dapat dikatakan bahwa `train_data_positive` stasioner dalam ragam.
 
-Tentu, berikut adalah kesimpulan akhir dari serangkaian analisis yang telah Anda lakukan.
-
 ## **Kesimpulan Akhir**
 
 Berdasarkan analisis kestasioneran pada data *training* harga Bitcoin, dapat disimpulkan bahwa:
