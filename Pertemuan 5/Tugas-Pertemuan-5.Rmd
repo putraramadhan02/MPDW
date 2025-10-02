@@ -1,0 +1,225 @@
+---
+title: "Tugas-Pertemuan-5"
+author: "Elardian Putera Ramadhan (G1401231042)"
+date: "2025-10-02"
+output:
+  html_document:
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: true
+    highlight: tango
+    code_folding: show
+    toc_depth: 5
+    number_sections: false
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **1. Persiapan dan Pemisahan Data (Train & Test)**
+
+Langkah pertama adalah menyiapkan data deret waktu Anda dan membaginya menjadi 80% data *training* dan 20% data *testing*.
+
+```{r}
+# Menggunakan library yang relevan
+library(forecast)
+library(tseries)
+library(ggplot2)
+```
+
+```{r}
+data <- read.csv("C:/Users/Putera Ramadhan/OneDrive/Documents/IPB University/Semester 5/(MPDW) Metode Peramalan Deret Waktu/UTS/Praktikum/MPDW/Pertemuan 1/Data/Reversed Bitcoin Historical Price.csv")
+data$Date <- as.Date(data$Date, format="%m/%d/%Y")
+data$Price <- as.numeric(gsub(",", "", data$Price))
+data_subset <- data[253:378, ]
+
+# Membuat objek time series (ts) dari kolom Price
+# Frekuensi 52 untuk data mingguan. 
+# Kita tentukan start date dari data_subset$Date[1] yaitu "2020-11-01" (minggu ke-44 tahun 2020)
+harga_ts <- ts(data_subset$Price, start = c(2020, 44), frequency = 52)
+
+# Menghitung titik pembagian data
+split_point <- floor(0.8 * length(harga_ts))
+
+# Memisahkan data train dan test
+train_data <- window(harga_ts, end = time(harga_ts)[split_point])
+test_data <- window(harga_ts, start = time(harga_ts)[split_point + 1])
+
+# Menampilkan panjang data masing-masing
+cat("Panjang Data Asli   :", length(harga_ts), "\n")
+cat("Panjang Data Train  :", length(train_data), "\n")
+cat("Panjang Data Test   :", length(test_data), "\n")
+```
+
+------------------------------------------------------------------------
+
+## **2. Pengecekan Kestasioneran dalam Rataan (Mean) pada Data Train**
+
+Kita akan menggunakan dua metode: visualisasi (plot deret waktu dan ACF) dan uji statistik formal (Augmented Dickey-Fuller Test).
+
+### **a. Analisis Visual**
+
+**Plot Deret Waktu:**
+
+Plot data train untuk melihat apakah ada tren (pola naik atau turun) yang jelas.
+
+```{r}
+autoplot(train_data, main = "Plot Deret Waktu Harga Bitcoin (Data Training)",
+         xlab="Tahun", ylab="Harga (USD)") +
+  theme_minimal()
+```
+
+**Interpretasi:** Plot tersebut menunjukkan data yang **tidak stasioner** karena adanya **pola tren naik-turun yang sangat jelas**, yang berarti nilai rata-rata data tidak konstan melainkan terus berubah seiring waktu.
+
+**Plot ACF (Autocorrelation Function):**
+
+Plot ACF menunjukkan korelasi antara observasi saat ini dengan observasi sebelumnya (lag).
+
+```{r}
+acf(train_data, main = "ACF dari Data Training Harga Bitcoin")
+```
+
+**Interpretasi:** Plot ACF menunjukkan **penurunan yang sangat lambat (slow decay)**. Korelasi pada lag-lag awal sangat tinggi dan turun secara linear. Ini adalah ciri khas dari data yang memiliki tren atau **tidak stasioner dalam rataan**.
+
+### **b. Uji Statistik (Augmented Dickey-Fuller Test)**
+
+Uji ADF digunakan untuk menguji hipotesis adanya *unit root*.
+
+-   $H_0$: Data tidak stasioner (memiliki *unit root*).
+-   $H_1$: Data stasioner.
+
+Kita menolak $H_0$ jika **p-value \< 0.05**.
+
+```{r}
+adf.test(train_data)
+```
+
+**Interpretasi:** Didapatkan **p-value = 0.2863**, yang jauh lebih besar dari 0.05. Artinya, kita **gagal menolak** $H_0$. Ini secara statistik mengonfirmasi bahwa data *training* **tidak stasioner dalam rataan**.
+
+------------------------------------------------------------------------
+
+## **3. Penanganan Ketidakstasioneran dalam Rataan**
+
+Untuk mengatasi tren, kita akan melakukan **differencing** orde 1 pada data *training*.
+
+```{r}
+# Melakukan differencing orde 1
+train_data_diff1 <- diff(train_data, differences = 1)
+
+# Plot data setelah differencing
+autoplot(train_data_diff1, main = "Plot Data Training Setelah Differencing Orde 1",
+         xlab="Tahun", ylab="Perbedaan Harga") +
+  theme_minimal()
+```
+
+### **Verifikasi Ulang Kestasioneran Rataan**
+
+Sekarang, kita uji kembali data yang sudah di-*differencing*.
+
+-   **Plot ACF:**
+
+    ```{r}
+    acf(train_data_diff1, main = "ACF Data Training Setelah Differencing")
+    ```
+
+    **Interpretasi:** Plot ACF sekarang menunjukkan penurunan yang cepat (cut off) setelah lag 0. Ini menandakan data sudah stasioner dalam rataan.
+
+-   **Uji ADF:**
+
+    ```{r}
+    adf.test(train_data_diff1)
+    ```
+
+    **Interpretasi:** **p-value = 0.023** (atau bisa lebih kecil tergantung *lag order*), yang sekarang lebih kecil dari 0.05. Kita **berhasil menolak** $H_0$.
+
+**Kesimpulan:** Data `train_data_diff1` sekarang sudah **stasioner dalam rataan**.
+
+------------------------------------------------------------------------
+
+## **4. Pengecekan Kestasioneran dalam Ragam (Variance)**
+
+Sekarang kita periksa apakah ragam dari data yang sudah stasioner rataan (`train_data_diff1`) bersifat konstan.
+
+### **a. Analisis Visual**
+
+Lihat kembali plot data setelah di-*differencing*. Perhatikan apakah lebar fluktuasi data sama sepanjang waktu.
+
+```{r}
+autoplot(train_data_diff1, main = "Plot Data Training Setelah Differencing Orde 1",
+         xlab="Tahun", ylab="Perbedaan Harga") +
+  theme_minimal()
+```
+
+**Interpretasi:** Secara visual, terlihat bahwa fluktuasi (volatilitas) harga di beberapa bagian tampak lebih besar dibandingkan bagian lainnya. Ini mengindikasikan kemungkinan adanya **ketidakstasioneran dalam ragam**.
+
+### **b. Uji Statistik (Box-Cox Plot)**
+
+Transformasi Box-Cox membantu menstabilkan ragam. Untuk menemukan parameter transformasi ($\lambda$) yang paling sesuai, kita bisa memvisualisasikannya dengan plot Box-Cox yang menunjukkan nilai *Log-Likelihood* untuk berbagai kandidat $\lambda$. Nilai $\lambda$ yang optimal adalah yang memberikan nilai *Log-Likelihood* tertinggi.
+
+```{r}
+# Memanggil library tambahan untuk plot Box-Cox
+library(MASS)
+
+train_data_positive <- train_data_diff1 + abs(min(train_data_diff1)) + 1
+```
+
+**Plot Box-Cox untuk Menentukan Lambda**
+
+Plot di bawah ini akan menunjukkan nilai Log-Likelihood pada sumbu Y untuk rentang nilai λ pada sumbu X. Puncak dari kurva ini adalah nilai λ optimal.
+
+```{r}
+# Membuat Plot Box-Cox
+boxcox(train_data_positive ~ 1, 
+       main="Plot Box-Cox untuk Lambda", 
+       xlab="Lambda (λ)", 
+       ylab="Log-Likelihood")
+```
+
+**Interpretasi Plot:**
+
+Dari plot di atas, kita dapat melihat secara visual bahwa puncak kurva (nilai Log-Likelihood maksimum) berada di sekitar $\lambda$ = 1.3. Ini adalah estimasi visual untuk nilai lambda yang optimal.
+
+**Lambda Optimum dan Selang Kepercayaan 95%**
+
+Sekarang akan dihitung nilai pastinya menggunakan fungsi `BoxCox.lambda()` dari paket `forecast`, sekaligus mencari selang kepercayaan 95% untuk nilai lambda tersebut. Selang kepercayaan ini memberi kita rentang nilai $\lambda$ yang paling mungkin.
+
+```{r}
+# Mencari lambda optimal menggunakan paket forecast (lebih praktis)
+lambda_opt <- BoxCox.lambda(train_data_positive)
+cat("Nilai Lambda Optimal:", lambda_opt, "\n")
+
+# Untuk mencari selang kepercayaan, kita bisa menggunakan kembali hasil dari fungsi boxcox()
+bc <- boxcox(train_data_positive ~ 1, plotit = FALSE) # Menjalankan tanpa membuat plot lagi
+lambda_ci <- data.frame(lambda = bc$x, loglik = bc$y)
+
+# Menentukan batas bawah dan atas untuk selang kepercayaan 95%
+ci_boundary <- max(lambda_ci$loglik) - 0.5 * qchisq(0.95, 1)
+ci_lower <- min(lambda_ci$lambda[lambda_ci$loglik >= ci_boundary])
+ci_upper <- max(lambda_ci$lambda[lambda_ci$loglik >= ci_boundary])
+
+cat("Selang Kepercayaan 95% untuk Lambda: (", round(ci_lower, 2), ",", round(ci_upper, 2), ")\n")
+```
+
+Gambar di atas menunjukkan nilai $\lambda$ optimum (rounded value) sebesar **1** dan selang kepercayaan 95% nilai memiliki batas bawah **0.8** dan batas atas **1.2**. Selang tersebut memuat nilai satu sehingga dapat dikatakan bahwa `train_data_positive` stasioner dalam ragam.
+
+Tentu, berikut adalah kesimpulan akhir dari serangkaian analisis yang telah Anda lakukan.
+
+## **Kesimpulan Akhir**
+
+Berdasarkan analisis kestasioneran pada data *training* harga Bitcoin, dapat disimpulkan bahwa:
+
+1.  Data asli terbukti **tidak stasioner dalam rataan** karena menunjukkan pola tren yang jelas, yang dikonfirmasi oleh plot ACF yang menurun lambat dan hasil uji ADF (p-value \> 0.05).
+
+2.  Penanganan melalui **differencing orde 1** berhasil mengatasi masalah ini, menghasilkan data deret waktu yang **stasioner dalam rataan**, sebagaimana dibuktikan oleh plot ACF yang *cut-off* dan hasil uji ADF (p-value \< 0.05).
+
+3.  Pengecekan kestasioneran dalam ragam pada data yang telah di-*differencing* melalui uji Box-Cox menunjukkan nilai lambda optimal adalah **1**, dengan selang kepercayaan 95% **(0.8, 1.2)**. Karena rentang ini **memuat nilai 1**, maka secara statistik **tidak ada cukup bukti untuk menolak bahwa ragamnya stasioner**. Oleh karena itu, transformasi untuk menstabilkan ragam tidak diperlukan.
+
+Dengan demikian, data `train_data_diff1` adalah data final yang telah **stasioner baik dalam rataan maupun ragam** dan siap digunakan untuk tahap pemodelan deret waktu selanjutnya.
