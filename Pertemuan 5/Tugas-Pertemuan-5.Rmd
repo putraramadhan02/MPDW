@@ -178,7 +178,6 @@ Plot di bawah ini akan menunjukkan nilai Log-Likelihood pada sumbu Y untuk renta
 ```{r}
 # Membuat Plot Box-Cox
 boxcox(train_data_positive ~ 1, 
-       main="Plot Box-Cox untuk Lambda", 
        xlab="Lambda (λ)", 
        ylab="Log-Likelihood")
 ```
