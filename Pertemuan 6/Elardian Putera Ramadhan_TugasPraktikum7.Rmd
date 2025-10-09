@@ -1,0 +1,684 @@
+---
+title: "Tugas-Pertemuan-7"
+author: "Elardian Putera Ramadhan (G1401231042)"
+date: "2025-10-09"
+output:
+  html_document:
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: true
+    highlight: tango
+    code_folding: show
+    toc_depth: 5
+    number_sections: false
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **1. Persiapan dan Pemisahan Data (Train & Test)**
+
+Langkah pertama adalah menyiapkan data deret waktu Anda dan membaginya menjadi 80% data *training* dan 20% data *testing*.
+
+```{r}
+# Menggunakan library yang relevan
+library(forecast)
+library(tseries)
+library(ggplot2)
+library(TSA) # Library tambahan untuk EACF
+library(lmtest) # Library tambahan untuk coeftest
+```
+
+```{r}
+data <- read.csv("C:/Users/Putera Ramadhan/OneDrive/Documents/IPB University/Semester 5/(MPDW) Metode Peramalan Deret Waktu/UTS/Praktikum/MPDW/Pertemuan 1/Data/Reversed Bitcoin Historical Price.csv")
+data$Date <- as.Date(data$Date, format="%m/%d/%Y")
+data$Price <- as.numeric(gsub(",", "", data$Price))
+data_subset <- data[253:378, ]
+
+# Membuat objek time series (ts) dari kolom Price
+# Frekuensi 52 untuk data mingguan. 
+# Kita tentukan start date dari data_subset$Date[1] yaitu "2020-11-01" (minggu ke-44 tahun 2020)
+harga_ts <- ts(data_subset$Price, start = c(2020, 44), frequency = 52)
+
+# Menghitung titik pembagian data
+split_point <- floor(0.8 * length(harga_ts))
+
+# Memisahkan data train dan test
+train_data <- window(harga_ts, end = time(harga_ts)[split_point])
+test_data <- window(harga_ts, start = time(harga_ts)[split_point + 1])
+
+# Menampilkan panjang data masing-masing
+cat("Panjang Data Asli   :", length(harga_ts), "\n")
+cat("Panjang Data Train  :", length(train_data), "\n")
+cat("Panjang Data Test   :", length(test_data), "\n")
+```
+
+------------------------------------------------------------------------
+
+## **2. Pengecekan Kestasioneran dalam Rataan (Mean) pada Data Train**
+
+Kita akan menggunakan dua metode: visualisasi (plot deret waktu dan ACF) dan uji statistik formal (Augmented Dickey-Fuller Test).
+
+### **a. Analisis Visual**
+
+**Plot Deret Waktu:**
+
+Plot data train untuk melihat apakah ada tren (pola naik atau turun) yang jelas.
+
+```{r}
+autoplot(train_data, main = "Plot Deret Waktu Harga Bitcoin (Data Training)",
+         xlab="Tahun", ylab="Harga (USD)") +
+  theme_minimal()
+```
+
+**Interpretasi:** Plot tersebut menunjukkan data yang **tidak stasioner** karena adanya **pola tren naik-turun yang sangat jelas**, yang berarti nilai rata-rata data tidak konstan melainkan terus berubah seiring waktu.
+
+**Plot ACF (Autocorrelation Function):**
+
+Plot ACF menunjukkan korelasi antara observasi saat ini dengan observasi sebelumnya (lag).
+
+```{r}
+acf(train_data, main = "ACF dari Data Training Harga Bitcoin")
+```
+
+**Interpretasi:** Plot ACF menunjukkan **penurunan yang sangat lambat (slow decay)**. Korelasi pada lag-lag awal sangat tinggi dan turun secara linear. Ini adalah ciri khas dari data yang memiliki tren atau **tidak stasioner dalam rataan**.
+
+### **b. Uji Statistik (Augmented Dickey-Fuller Test)**
+
+Uji ADF digunakan untuk menguji hipotesis adanya *unit root*.
+
+-   $H_0$: Data tidak stasioner (memiliki *unit root*).
+-   $H_1$: Data stasioner.
+
+Kita menolak $H_0$ jika **p-value \< 0.05**.
+
+```{r}
+adf.test(train_data)
+```
+
+**Interpretasi:** Didapatkan **p-value = 0.2863**, yang jauh lebih besar dari 0.05. Artinya, kita **gagal menolak** $H_0$. Ini secara statistik mengonfirmasi bahwa data *training* **tidak stasioner dalam rataan**.
+
+------------------------------------------------------------------------
+
+## **3. Penanganan Ketidakstasioneran dalam Rataan**
+
+Untuk mengatasi tren, kita akan melakukan **differencing** orde 1 pada data *training*.
+
+```{r}
+# Melakukan differencing orde 1
+train_data_diff1 <- diff(train_data, differences = 1)
+
+# Plot data setelah differencing
+autoplot(train_data_diff1, main = "Plot Data Training Setelah Differencing Orde 1",
+         xlab="Tahun", ylab="Perbedaan Harga") +
+  theme_minimal()
+```
+
+### **Verifikasi Ulang Kestasioneran Rataan**
+
+Sekarang, kita uji kembali data yang sudah di-*differencing*.
+
+-   **Plot ACF:**
+
+    ```{r}
+    acf(train_data_diff1, main = "ACF Data Training Setelah Differencing")
+    ```
+
+    **Interpretasi:** Plot ACF sekarang menunjukkan penurunan yang cepat (cut off) setelah lag 0. Ini menandakan data sudah stasioner dalam rataan.
+
+-   **Uji ADF:**
+
+    ```{r}
+    adf.test(train_data_diff1)
+    ```
+
+    **Interpretasi:** **p-value = 0.023** (atau bisa lebih kecil tergantung *lag order*), yang sekarang lebih kecil dari 0.05. Kita **berhasil menolak** $H_0$.
+
+**Kesimpulan:** Data `train_data_diff1` sekarang sudah **stasioner dalam rataan**.
+
+------------------------------------------------------------------------
+
+## **4. Pengecekan Kestasioneran dalam Ragam (Variance)**
+
+Sekarang kita periksa apakah ragam dari data yang sudah stasioner rataan (`train_data_diff1`) bersifat konstan.
+
+### **a. Analisis Visual**
+
+Lihat kembali plot data setelah di-*differencing*. Perhatikan apakah lebar fluktuasi data sama sepanjang waktu.
+
+```{r}
+autoplot(train_data_diff1, main = "Plot Data Training Setelah Differencing Orde 1",
+         xlab="Tahun", ylab="Perbedaan Harga") +
+  theme_minimal()
+```
+
+**Interpretasi:** Secara visual, terlihat bahwa fluktuasi (volatilitas) harga di beberapa bagian tampak lebih besar dibandingkan bagian lainnya. Ini mengindikasikan kemungkinan adanya **ketidakstasioneran dalam ragam**.
+
+### **b. Uji Statistik (Box-Cox Plot)**
+
+Transformasi Box-Cox membantu menstabilkan ragam. Untuk menemukan parameter transformasi ($\lambda$) yang paling sesuai, kita bisa memvisualisasikannya dengan plot Box-Cox yang menunjukkan nilai *Log-Likelihood* untuk berbagai kandidat $\lambda$. Nilai $\lambda$ yang optimal adalah yang memberikan nilai *Log-Likelihood* tertinggi.
+
+```{r}
+# Memanggil library tambahan untuk plot Box-Cox
+library(MASS)
+
+train_data_positive <- train_data_diff1 + abs(min(train_data_diff1)) + 1
+```
+
+**Plot Box-Cox untuk Menentukan Lambda**
+
+Plot di bawah ini akan menunjukkan nilai Log-Likelihood pada sumbu Y untuk rentang nilai λ pada sumbu X. Puncak dari kurva ini adalah nilai λ optimal.
+
+```{r}
+# Membuat Plot Box-Cox
+boxcox(train_data_positive ~ 1, 
+       xlab="Lambda (λ)", 
+       ylab="Log-Likelihood")
+```
+
+**Interpretasi Plot:**
+
+Dari plot di atas, kita dapat melihat secara visual bahwa puncak kurva (nilai Log-Likelihood maksimum) berada di sekitar $\lambda$ = 1.3. Ini adalah estimasi visual untuk nilai lambda yang optimal.
+
+**Lambda Optimum dan Selang Kepercayaan 95%**
+
+Sekarang akan dihitung nilai pastinya menggunakan fungsi `BoxCox.lambda()` dari paket `forecast`, sekaligus mencari selang kepercayaan 95% untuk nilai lambda tersebut. Selang kepercayaan ini memberi kita rentang nilai $\lambda$ yang paling mungkin.
+
+```{r}
+# Mencari lambda optimal menggunakan paket forecast (lebih praktis)
+lambda_opt <- BoxCox.lambda(train_data_positive)
+cat("Nilai Lambda Optimal:", lambda_opt, "\n")
+
+# Untuk mencari selang kepercayaan, kita bisa menggunakan kembali hasil dari fungsi boxcox()
+bc <- boxcox(train_data_positive ~ 1, plotit = FALSE) # Menjalankan tanpa membuat plot lagi
+lambda_ci <- data.frame(lambda = bc$x, loglik = bc$y)
+
+# Menentukan batas bawah dan atas untuk selang kepercayaan 95%
+ci_boundary <- max(lambda_ci$loglik) - 0.5 * qchisq(0.95, 1)
+ci_lower <- min(lambda_ci$lambda[lambda_ci$loglik >= ci_boundary])
+ci_upper <- max(lambda_ci$lambda[lambda_ci$loglik >= ci_boundary])
+
+cat("Selang Kepercayaan 95% untuk Lambda: (", round(ci_lower, 2), ",", round(ci_upper, 2), ")\n")
+```
+
+Gambar di atas menunjukkan nilai $\lambda$ optimum (rounded value) sebesar **1** dan selang kepercayaan 95% nilai memiliki batas bawah **0.8** dan batas atas **1.2**. Selang tersebut memuat nilai satu sehingga dapat dikatakan bahwa `train_data_positive` stasioner dalam ragam.
+
+Tentu, dengan senang hati saya akan melanjutkan analisis Anda. Berikut adalah kelanjutan dari kode R Markdown Anda, dimulai dari tahap ke-5, yaitu Identifikasi Model ARIMA.
+
+-----
+
+## **5. Identifikasi Model ARIMA Tentatif**
+
+Setelah data stasioner (`train_data_diff1`), langkah selanjutnya adalah mengidentifikasi orde AR (p) dan MA (q) yang potensial. Kita akan menggunakan plot ACF, PACF, dan EACF dari data yang sudah stasioner ini.
+
+### **a. Plot ACF (Autocorrelation Function)**
+
+Plot ACF membantu kita mengidentifikasi orde **MA (q)**. Pola *cut-off* (turun drastis ke nol) pada lag ke-q menunjukkan model MA(q).
+
+```{r}
+acf(train_data_diff1, main="ACF Data Stasioner (Differencing Orde 1)")
+```
+
+**Interpretasi:** Plot ACF tidak menunjukkan adanya lag yang signifikan. Hal ini berarti model tidak memerlukan komponen *Moving Average* (MA), sehingga orde q dapat diasumsikan sebagai 0.
+
+### **b. Plot PACF (Partial Autocorrelation Function)**
+
+Plot PACF membantu kita mengidentifikasi orde **AR (p)**. Pola *cut-off* pada lag ke-p menunjukkan model AR(p).
+
+```{r}
+pacf(train_data_diff1, main="PACF Data Stasioner (Differencing Orde 1)")
+```
+
+**Interpretasi:** Plot PACF tidak menunjukkan adanya lag yang signifikan. Ini berarti model tidak memerlukan komponen *AutoRegressive* (AR), sehingga **orde p dapat diasumsikan sebagai 0**.
+
+### **c. Plot EACF (Extended Autocorrelation Function)**
+
+EACF adalah alat yang lebih canggih untuk mengidentifikasi model ARMA campuran. Kita mencari sudut kanan atas dari segitiga nol ("O") pada tabel EACF.
+
+```{r}
+eacf(train_data_diff1)
+```
+
+**Interpretasi:**  
+Tabel EACF menyarankan beberapa model kandidat. Puncak segitiga nol ("o") berada pada:
+
+* **AR=0, MA=0**: Ini menunjukkan model **ARIMA(0,1,0)**.
+* **AR=1, MA=1**: Ini menunjukkan model **ARIMA(1,1,1)**.
+* **AR=2, MA=1**: Ini menunjukkan model **ARIMA(2,1,1)**.
+
+**Kesimpulan Identifikasi:**  
+Berdasarkan ketiga plot (ACF, PACF, dan EACF), model tentatif yang paling potensial adalah:
+
+1.  **ARIMA(0,1,0)**: Dari EACF (saran utama), ACF, dan PACF.
+2.  **ARIMA(1,1,1)**: Model campuran yang disarankan oleh EACF.
+3.  **ARIMA(1,1,0)**: Dari pertimbangan plot PACF (model AR murni).
+4.  **ARIMA(0,1,1)**: Dari pertimbangan plot ACF (model MA murni).
+5.  **ARIMA(2,1,1)**: Model campuran lain yang disarankan oleh EACF.
+
+-----
+
+## **6. Pendugaan Parameter Model Tentatif**
+
+Sekarang kita akan menduga parameter untuk setiap model tentatif yang telah diidentifikasi menggunakan data `train_data`.
+
+### **a. Model ARIMA(0,1,0)**
+
+Model ini adalah random walk dan tidak memiliki parameter AR atau MA untuk diestimasi, sehingga uji koefisien tidak diperlukan.
+
+```{r}
+model1 <- Arima(train_data, order=c(0,1,0))
+summary(model1)
+```
+
+### **b. Model ARIMA(1,1,1)**
+
+```{r}
+model2 <- Arima(train_data, order=c(1,1,1))
+summary(model2)
+coeftest(model2)
+```
+
+**Interpretasi:** Hasil uji menunjukkan bahwa parameter `ar1` dan `ma1` **keduanya sangat signifikan** secara statistik.
+
+Nilai *p-value* (`Pr(>|z|)`) untuk kedua koefisien tersebut jauh lebih kecil dari 0.05. Ini mengonfirmasi bahwa model **ARIMA(1,1,1)** adalah kandidat yang kuat, karena baik komponen *AutoRegressive* maupun *Moving Average*-nya memberikan kontribusi yang berarti.
+
+### **c. Model ARIMA(1,1,0)**
+
+```{r}
+model3 <- Arima(train_data, order=c(1,1,0))
+summary(model3)
+coeftest(model3)
+```
+
+**Interpretasi:** Hasil uji menunjukkan bahwa parameter `ar1` **tidak signifikan** secara statistik.
+
+Nilai *p-value*nya (**0.3221**) jauh lebih besar dari tingkat signifikansi 0.05. Ini berarti komponen *AutoRegressive* (AR) tidak memberikan kontribusi yang berarti pada model, sehingga **ARIMA(1,1,0)** kemungkinan bukan model yang baik untuk data ini.
+
+### **d. Model ARIMA(0,1,1)**
+
+```{r}
+model4 <- Arima(train_data, order=c(0,1,1))
+summary(model4)
+coeftest(model4)
+```
+
+**Interpretasi:** Hasil uji menunjukkan bahwa parameter `ma1` **tidak signifikan** secara statistik.
+
+Nilai *p-value*nya (**0.2592**) jauh lebih besar dari tingkat signifikansi 0.05. Ini berarti komponen *Moving Average* (MA) tidak memberikan kontribusi yang berarti, sehingga **ARIMA(0,1,1)** kemungkinan bukan model yang baik untuk data ini.
+
+### **e. Model ARIMA(2,1,1)**
+
+```{r}
+model5 <- Arima(train_data, order=c(2,1,1))
+summary(model5)
+coeftest(model5)
+```
+
+**Intepretasi:** Hasil uji menunjukkan hasil yang **campuran**, di mana tidak semua parameter signifikan.
+
+* **Signifikan** Parameter `ar1` dan `ma1` **sangat signifikan** secara statistik, dengan nilai *p-value* yang jauh lebih kecil dari 0.05.
+
+* **Tidak Signifikan** Parameter `ar2` **tidak signifikan**, karena *p-value*nya (**0.855**) sangat besar.
+
+**Kesimpulan**
+
+Karena parameter `ar2` tidak signifikan, model **ARIMA(2,1,1)** ini kemungkinan besar ***overfit*** (terlalu kompleks). Menambahkan komponen AR orde kedua tidak memberikan kontribusi yang berarti. Model yang lebih sederhana tanpa `ar2`, yaitu **ARIMA(1,1,1)**, adalah pilihan yang lebih baik.
+
+-----
+
+Bisa banget\! Ini kode yang diperbarui untuk menambahkan nilai BIC (*Bayesian Information Criterion*) ke dalam tabel ringkasan Anda.
+
+-----
+
+## **7. Ringkasan Kriteria Informasi (AICc & BIC)**
+
+Kita akan membandingkan nilai AICc dan BIC dari kelima model. Keduanya adalah kriteria seleksi model di mana nilai **terkecil** menunjukkan model yang paling baik (parsimonious). BIC cenderung memberikan penalti yang lebih besar untuk model yang kompleks.
+
+```{r}
+# Membuat vektor nama model, nilai AICc, dan nilai BIC
+model_names <- c("ARIMA(0,1,0)", "ARIMA(1,1,1)", "ARIMA(1,1,0)", "ARIMA(0,1,1)", "ARIMA(2,1,1)")
+aicc_values <- c(model1$aicc, model2$aicc, model3$aicc, model4$aicc, model5$aicc)
+bic_values <- c(BIC(model1), BIC(model2), BIC(model3), BIC(model4), BIC(model5))
+
+# Membuat data frame
+summary_table <- data.frame(
+  Model = model_names,
+  AICc = aicc_values,
+  BIC = bic_values
+)
+
+# Mengurutkan data frame berdasarkan nilai AICc (bisa juga berdasarkan BIC)
+summary_table_sorted <- summary_table[order(summary_table$AICc), ]
+
+# Menampilkan tabel ringkasan
+print(summary_table_sorted)
+```
+
+**Interpretasi Tabel:**
+
+Berdasarkan tabel, model **ARIMA(0,1,0)** adalah yang terbaik karena memiliki nilai AICc dan BIC terendah.
+
+Meskipun parameter pada model ARIMA(1,1,1) signifikan, kriteria informasi (AICc/BIC) menunjukkan bahwa kompleksitas tambahan tersebut tidak memberikan peningkatan performa yang cukup.
+
+**Rekomendasi:** Lanjutkan analisis sisaan pada kedua model—**ARIMA(0,1,0)** dan **ARIMA(1,1,1)**—untuk membuat keputusan akhir.
+
+-----
+
+## **8. Analisis Sisaan (Uji Diagnostik Formal)**
+
+Pada tahap ini, kita akan melakukan uji diagnostik formal pada sisaan dari kedua model kandidat, **ARIMA(0,1,0)** dan **ARIMA(1,1,1)**, untuk memastikan sisaan tersebut memenuhi asumsi *white noise*.
+
+### **a. Analisis Sisaan Model ARIMA(0,1,0)**
+
+Model ini merupakan kandidat terbaik berdasarkan kriteria AICc dan BIC.
+
+**Eksplorasi Visual**
+
+```{r}
+# Analisis visual untuk ARIMA(0,1,0)
+checkresiduals(model1)
+```
+
+**Interpretasi Visual:**
+
+1.  **Plot Sisaan vs Waktu:** Sisaan tampak tersebar acak di sekitar nol tanpa adanya pola tren atau siklus yang jelas. Ini pertanda baik.
+2.  **Plot ACF Sisaan:** Tidak ada lag yang signifikan secara statistik (tidak ada garis yang melebihi batas biru), yang menunjukkan tidak adanya autokorelasi yang tersisa pada sisaan.
+3.  **Histogram Sisaan:** Distribusi sisaan terlihat mendekati bentuk lonceng (distribusi normal), dengan pusatnya berada di sekitar nol.
+
+**Uji Formal**
+
+**1) Uji Normalitas Sisaan (Shapiro-Wilk)**
+
+  * $H_0$: Sisaan menyebar normal.
+  * Kita berharap **p-value \> 0.05** untuk gagal menolak $H_0$.
+
+```{r}
+shapiro.test(residuals(model1))
+```
+
+Berdasarkan hasil uji Shapiro-Wilk, sisaan model dapat dianggap **menyebar normal**.
+
+Nilai **p-value = 0.0552**, yang lebih besar dari tingkat signifikansi 0.05. Artinya, kita **tidak memiliki cukup bukti untuk menolak hipotesis nol** ($H_0$) bahwa sisaan berdistribusi normal. Sehingga, asumsi normalitas sisaan untuk model ini **terpenuhi**.
+
+**2) Uji Autokorelasi Sisaan (Ljung-Box)**
+
+  * $H_0$: Sisaan saling bebas (tidak ada autokorelasi).
+  * Kita berharap **p-value \> 0.05** untuk gagal menolak $H_0$.
+
+```{r}
+# fitdf=0 karena model ARIMA(0,1,0) tidak punya parameter p atau q.
+Box.test(residuals(model1), lag=10, type="Ljung-Box", fitdf=0)
+```
+
+Berdasarkan hasil uji Ljung-Box, sisaan (residuals) model dapat dianggap **saling bebas (independen)** dan **tidak memiliki autokorelasi**.
+
+Nilai **p-value = 0.6458**, yang jauh lebih besar dari tingkat signifikansi 0.05. Ini berarti kita **gagal menolak hipotesis nol** ($H_0$) yang menyatakan bahwa sisaan tidak memiliki autokorelasi. Dengan demikian, asumsi penting bahwa sisaan bersifat *white noise* (acak) **terpenuhi**.
+
+**3) Uji Homogenitas Ragam Sisaan (Ljung-Box pada Sisaan Kuadrat)**
+Uji ini memeriksa apakah ada autokorelasi pada sisaan yang dikuadratkan. Jika tidak ada, ini menandakan tidak adanya efek ARCH (volatilitas yang berkelompok) dan ragam sisaan bersifat homogen.
+
+  * $H_0$: Ragam sisaan homogen.
+  * Kita berharap **p-value \> 0.05** untuk gagal menolak $H_0$.
+
+```{r}
+squared_residuals_1 <- residuals(model1)^2
+Box.test(squared_residuals_1, lag=10, type="Ljung-Box")
+```
+Berdasarkan hasil uji Ljung-Box pada sisaan kuadrat, asumsi ragam sisaan yang **homogen tidak terpenuhi**.
+
+Nilai **p-value = 0.0009034**, yang jauh lebih kecil dari tingkat signifikansi 0.05. Ini berarti kita **menolak hipotesis nol** ($H_0$) bahwa ragam sisaan homogen.
+
+Adanya autokorelasi pada sisaan kuadrat ini mengindikasikan adanya efek **heteroskedastisitas** (atau efek ARCH), di mana volatilitas (ragam) dari data tidak konstan sepanjang waktu.
+
+**4) Uji Nilai Tengah Sisaan (One-Sample t-test)**
+
+  * $H_0$: Nilai tengah (mean) sisaan sama dengan nol.
+  * Kita berharap **p-value \> 0.05** untuk gagal menolak $H_0$.
+  
+```{r}
+t.test(residuals(model1), mu = 0)
+```
+
+Berdasarkan hasil uji-t, dapat disimpulkan bahwa **nilai tengah (mean) sisaan tidak berbeda nyata dari nol**.
+
+Nilai **p-value = 0.9151**, yang jauh lebih besar dari tingkat signifikansi 0.05. Ini berarti kita **gagal menolak hipotesis nol** ($H_0$) bahwa rata-rata sisaan adalah nol. Dengan demikian, asumsi sisaan yang terpusat di nol **terpenuhi**.
+
+### **b. Analisis Sisaan Model ARIMA(1,1,1)**
+
+Model ini merupakan kandidat kuat berdasarkan signifikansi parameternya.
+
+**Eksplorasi Visual**
+
+```{r}
+# Analisis visual untuk ARIMA(1,1,1)
+checkresiduals(model2)
+```
+
+**Interpretasi Visual:**
+
+1.  **Plot Sisaan vs Waktu (atas):** Sisaan tampak tersebar secara acak di sekitar garis nol tanpa adanya pola tren atau musiman. Hal ini menandakan model sudah baik dalam menangkap pola data.
+
+2.  **Plot ACF Sisaan (kiri bawah):** Tidak ada lag yang signifikan secara statistik (semua garis vertikal berada di dalam batas biru). Ini menunjukkan bahwa sisaan sudah saling bebas dan tidak memiliki autokorelasi.
+
+3.  **Histogram Sisaan (kanan bawah):** Distribusi sisaan terlihat mendekati sebaran normal (berbentuk lonceng) dan terpusat di sekitar nol.
+
+Secara keseluruhan, visualisasi ini menunjukkan bahwa sisaan dari model **ARIMA(1,1,1)** telah memenuhi asumsi *white noise*, yang berarti model ini adalah model yang baik dan valid untuk data ini.
+
+**Uji Formal**
+
+**1) Uji Normalitas Sisaan (Shapiro-Wilk)**
+
+  * $H_0$: Sisaan menyebar normal.
+  * Kita berharap **p-value \> 0.05**.
+
+```{r}
+shapiro.test(residuals(model2))
+```
+
+Berdasarkan hasil uji Shapiro-Wilk, sisaan (residuals) dari model ini dapat dianggap **menyebar normal**.
+
+Nilai **p-value = 0.2279**, yang jauh lebih besar dari tingkat signifikansi 0.05. Ini berarti kita **gagal menolak hipotesis nol** ($H_0$) yang menyatakan bahwa sisaan berdistribusi normal. Dengan demikian, asumsi normalitas untuk sisaan model ini **terpenuhi**.
+
+**2) Uji Autokorelasi Sisaan (Ljung-Box)**
+
+  * $H_0$: Sisaan saling bebas (tidak ada autokorelasi).
+  * Kita berharap **p-value \> 0.05**.
+
+```{r}
+# fitdf=2 karena model ARIMA(1,1,1) punya 2 parameter (p=1, q=1).
+Box.test(residuals(model2), lag=10, type="Ljung-Box", fitdf=2)
+```
+
+Berdasarkan hasil uji Ljung-Box, sisaan (residuals) dari model ini dapat dianggap **saling bebas (independen)** dan **tidak memiliki autokorelasi**.
+
+Nilai **p-value = 0.744**, yang jauh lebih besar dari tingkat signifikansi 0.05. Ini berarti kita **gagal menolak hipotesis nol** ($H_0$) yang menyatakan bahwa sisaan tidak memiliki autokorelasi. Dengan demikian, asumsi sisaan yang bersifat *white noise* (acak) untuk model ini **terpenuhi**.
+
+**3) Uji Homogenitas Ragam Sisaan (Ljung-Box pada Sisaan Kuadrat)**
+
+  * $H_0$: Ragam sisaan homogen.
+  * Kita berharap **p-value \> 0.05**.
+
+```{r}
+squared_residuals_2 <- residuals(model2)^2
+Box.test(squared_residuals_2, lag=10, type="Ljung-Box")
+```
+
+Berdasarkan hasil uji Ljung-Box pada sisaan kuadrat, asumsi ragam sisaan yang **homogen tidak terpenuhi**.
+
+Nilai **p-value = 0.0002028**, yang jauh lebih kecil dari tingkat signifikansi 0.05. Ini berarti kita **menolak hipotesis nol** ($H_0$) bahwa ragam sisaan bersifat homogen.
+
+Hasil ini mengindikasikan adanya efek **heteroskedastisitas** (atau efek ARCH), di mana volatilitas (ragam) dari data tidak konstan sepanjang waktu, sama seperti yang ditemukan pada model ARIMA(0,1,0).
+
+**4) Uji Nilai Tengah Sisaan (One-Sample t-test)**
+
+  * $H_0$: Nilai tengah (mean) sisaan sama dengan nol.
+  * Kita berharap **p-value \> 0.05** untuk gagal menolak $H_0$.
+  
+```{r}
+t.test(residuals(model2), mu = 0)
+```
+
+Berdasarkan hasil uji-t, **nilai tengah (mean) sisaan tidak berbeda nyata dari nol**.
+
+Nilai **p-value = 0.9197**, yang jauh lebih besar dari tingkat signifikansi 0.05. Ini berarti kita **gagal menolak hipotesis nol** ($H_0$) bahwa rata-rata sisaan adalah nol. Dengan demikian, asumsi sisaan yang terpusat di nol untuk model ini **terpenuhi**.
+
+### **Kesimpulan Uji Diagnostik**
+
+Berdasarkan hasil uji diagnostik yang telah dilakukan, berikut adalah kesimpulan akhirnya.
+
+Secara keseluruhan, **kedua model—ARIMA(0,1,0) dan ARIMA(1,1,1)—menunjukkan hasil diagnostik yang sangat mirip** dan keduanya dapat dianggap sebagai model yang valid, meskipun dengan satu catatan penting.
+
+#### Ringkasan Hasil
+
+* **Asumsi yang Terpenuhi**
+    Kedua model berhasil **lolos** tiga dari empat asumsi krusial:
+    1.  **Normalitas:** Sisaan kedua model terdistribusi normal.
+    2.  **Tidak Ada Autokorelasi:** Sisaan kedua model bersifat independen dan acak (*white noise*).
+    3.  **Rataan Nol:** Sisaan kedua model terbukti memiliki rata-rata nol.
+    
+    Ini menunjukkan bahwa kedua model secara fundamental sudah baik dalam menangkap pola dalam data Anda.
+
+* **Asumsi yang Tidak Terpenuhi*
+    Satu-satunya asumsi yang **tidak terpenuhi** oleh kedua model adalah **homogenitas ragam**. Keduanya menunjukkan adanya efek **heteroskedastisitas** (atau efek ARCH), di mana volatilitas data tidak konstan. Ini adalah karakteristik yang **sangat umum ditemukan pada data keuangan** seperti harga Bitcoin, sehingga kegagalan pada uji ini dapat diterima untuk pemodelan ARIMA standar.
+
+#### Penentuan Model Terbaik
+
+Karena kedua model memiliki performa diagnostik yang nyaris identik, kita perlu kembali ke kriteria sebelumnya untuk menentukan pemenangnya:
+
+1.  **Prinsip Parsimoni (Kesederhanaan):** Model yang lebih sederhana selalu lebih diutamakan jika performanya setara. **ARIMA(0,1,0)** (tanpa parameter) jauh lebih sederhana daripada ARIMA(1,1,1) (dengan dua parameter).
+2.  **Kriteria Informasi (AICc & BIC):** Sebelumnya, nilai AICc dan BIC secara jelas menunjukkan bahwa **ARIMA(0,1,0)** adalah model yang lebih unggul.
+
+Maka, model akhir yang terpilih adalah:
+$$\textbf{ARIMA(0,1,0)}$$
+Model ini adalah pilihan terbaik karena merupakan model paling sederhana yang mampu menjelaskan data dengan sangat baik (terbukti dari sisaannya yang lolos uji *white noise*) dan juga didukung oleh kriteria AICc/BIC.
+
+-----
+
+## **9. Overfitting**
+
+Tahap terakhir sebelum peramalan adalah memastikan model terbaik kita, **ARIMA(0,1,0)**, tidak *underfit*. Caranya adalah dengan menguji model yang sedikit lebih kompleks (model *overfit*) dan memeriksa apakah penambahan parameter tersebut memberikan peningkatan yang signifikan. Jika tidak, maka model kita yang lebih sederhana sudah tepat.
+
+Kita akan memeriksa dua model yang lebih kompleks, yaitu **ARIMA(1,1,0)** dan **ARIMA(0,1,1)**, yang datanya sudah kita dapatkan dari analisis sebelumnya.
+
+### **a. Memeriksa Model ARIMA(1,1,0)**
+
+Dari hasil **Bagian 6 (Pendugaan Parameter)** dan **Bagian 7 (Ringkasan AIC)**, kita menemukan bahwa:
+
+1.  **Signifikansi Parameter:** Koefisien `ar1` pada model ARIMA(1,1,0) terbukti **tidak signifikan** secara statistik (p-value = 0.3221).
+2.  **Kriteria Informasi:** Nilai AICc-nya (1936.380) **lebih tinggi** daripada AICc model ARIMA(0,1,0) (1935.271).
+
+**Kesimpulan:** Penambahan komponen AR(1) tidak memberikan kontribusi yang berarti dan justru memperburuk nilai AICc.
+
+### **b. Memeriksa Model ARIMA(0,1,1)**
+
+Sama seperti sebelumnya, dari hasil analisis kita menemukan bahwa:
+
+1.  **Signifikansi Parameter:** Koefisien `ma1` pada model ARIMA(0,1,1) juga **tidak signifikan** (p-value = 0.2592).
+2.  **Kriteria Informasi:** Nilai AICc-nya (1936.103) juga **lebih tinggi** daripada AICc model ARIMA(0,1,0).
+
+**Kesimpulan:** Penambahan komponen MA(1) juga tidak meningkatkan kualitas model.
+
+### **Kesimpulan Uji Overfitting️**
+
+Karena penambahan satu parameter AR atau satu parameter MA menghasilkan model dengan parameter yang tidak signifikan dan nilai AICc yang lebih buruk, kita dapat menyimpulkan bahwa model **ARIMA(0,1,0)** bukanlah model yang *underfit*.
+
+Model ini telah lolos uji *overfitting* dan dikonfirmasi sebagai model **terbaik yang paling parsimonious (sederhana dan efisien)** untuk data ini.
+
+-----
+
+## **10. Model Terbaik: ARIMA(0,1,0)**
+
+Setelah melalui seluruh tahapan identifikasi, pendugaan parameter, perbandingan kriteria informasi (AICc/BIC), uji diagnostik sisaan, dan uji *overfitting*, model terbaik dan paling tepat untuk data harga Bitcoin ini adalah **ARIMA(0,1,0)**.
+
+Model ini terpilih berdasarkan tiga alasan utama yang saling menguatkan:
+
+1.  **Kriteria Informasi:** Model ARIMA(0,1,0) secara konsisten memiliki nilai **AICc dan BIC terendah**, menandakan bahwa ini adalah model yang paling efisien dalam menjelaskan data dengan kompleksitas minimal.
+2.  **Uji Diagnostik:** Sisaan dari model ini berhasil **lolos semua asumsi penting** (normalitas, tidak ada autokorelasi, dan rataan nol), membuktikan bahwa model ini valid dan mampu menangkap semua pola linier dalam data. Performanya setara dengan model yang lebih kompleks.
+3.  **Prinsip Parsimoni:** Model ini adalah model yang **paling sederhana (parsimonious)**. Uji *overfitting* mengonfirmasi bahwa penambahan parameter AR atau MA tidak memberikan peningkatan performa yang signifikan.
+
+**Interpretasi Model**
+
+Model ARIMA(0,1,0) dikenal juga sebagai model **Random Walk**. Ini memiliki interpretasi yang kuat dalam konteks data keuangan: perubahan harga dari satu periode ke periode berikutnya adalah acak dan tidak dapat diprediksi dari harga-harga sebelumnya. Dengan kata lain, prediksi terbaik untuk harga besok adalah harga hari ini.
+
+Dengan demikian, model **ARIMA(0,1,0)** siap digunakan untuk tahap peramalan selanjutnya.
+
+-----
+
+Tentu. Setelah menetapkan **ARIMA(0,1,0)** sebagai model terbaik, sekarang kita masuk ke tahap akhir yaitu peramalan.
+
+Berikut adalah perbaikan untuk Bagian 11.
+
+-----
+
+## **11. Peramalan (Forecasting)**
+
+Pada tahap akhir ini, kita akan menggunakan model terbaik yang telah terpilih, **ARIMA(0,1,0)**, untuk melakukan peramalan pada periode data *testing*. Kinerja peramalan kemudian akan dievaluasi dengan membandingkan hasil ramalan dengan data aktual pada periode tersebut.
+
+### **a. Melakukan Peramalan**
+
+Kita akan meramalkan data sebanyak panjang `test_data` ke depan menggunakan fungsi `forecast()`.
+
+```{r}
+# Melakukan peramalan menggunakan model terbaik (model1)
+# h adalah horizon atau jumlah periode peramalan
+forecast_result <- forecast(model1, h = length(test_data))
+
+# Menampilkan hasil ramalan dalam bentuk tabel
+print(forecast_result)
+```
+
+### **b. Visualisasi Hasil Peramalan**
+
+Visualisasi adalah cara terbaik untuk membandingkan nilai ramalan dengan data aktual secara intuitif.
+
+```{r}
+# Plot hasil peramalan dan membandingkannya dengan data aktual
+autoplot(forecast_result, main = "Peramalan Harga Bitcoin dengan ARIMA(0,1,0)") +
+  autolayer(test_data, series = "Data Aktual") +
+  theme_minimal() +
+  labs(x = "Tahun", y = "Harga (USD)", title = "Peramalan Harga Bitcoin (Random Walk)",
+       subtitle = "Hasil Ramalan vs Data Aktual pada Periode Test")
+```
+
+**Interpretasi Plot**
+
+  * **Garis Biru (Ramalan):** Hasil peramalan dari model ARIMA(0,1,0) atau *Random Walk* adalah sebuah **garis lurus (flat line)**. Ini terjadi karena model ini memprediksi bahwa nilai di masa depan adalah nilai terakhir dari data training, dengan tambahan *error* acak.
+  * **Area Abu-abu (Selang Kepercayaan):** Area di sekitar garis ramalan menunjukkan selang kepercayaan 80% (gelap) dan 95% (terang). Semakin jauh periode peramalan, **semakin lebar selang kepercayaan**, yang mencerminkan meningkatnya ketidakpastian.
+  * **Garis Merah (Data Aktual):** Ini adalah pergerakan harga Bitcoin yang sesungguhnya pada periode *testing*. Kita dapat melihat bagaimana data aktual berfluktuasi di sekitar garis ramalan.
+
+### **c. Evaluasi Akurasi Peramalan**
+
+Untuk mengukur kinerja model secara kuantitatif, kita gunakan fungsi `accuracy()` untuk menghitung beberapa metrik kesalahan (*error metrics*).
+
+```{r}
+# Menghitung metrik akurasi dengan membandingkan ramalan dan data test
+accuracy(forecast_result, test_data)
+```
+
+**Interpretasi Tabel Akurasi**
+
+Secara ringkas, model Anda memiliki rata-rata kesalahan peramalan sekitar **14.2%** pada data baru (test set), dan performanya stabil karena tidak menunjukkan adanya *overfitting*.
+
+**Ringkasan Kinerja Model**
+
+Fokus utama kita adalah pada baris **"Test set"**, karena baris ini mengukur seberapa baik model melakukan peramalan pada data yang belum pernah dilihat sebelumnya.
+
+* **MAPE (Mean Absolute Percentage Error): 14.2%**
+    Ini adalah metrik yang paling mudah dipahami. Secara rata-rata, ramalan model Anda **menyimpang sekitar 14.2%** dari nilai aktualnya. Ini adalah ukuran kinerja utama dari peramalan Anda.
+
+* **RMSE & MAE (Root Mean Squared Error & Mean Absolute Error)**
+    Kedua metrik ini mengukur kesalahan dalam satuan asli data (USD). Rata-rata kesalahan absolut (MAE) pada `test set` adalah **$3,090**. Artinya, ramalan Anda rata-rata meleset sebesar nilai tersebut, bisa lebih tinggi atau lebih rendah dari nilai aktual.
+
+* **ME (Mean Error): 1313.5**
+    Nilai ME yang positif menunjukkan bahwa model Anda memiliki sedikit **kecenderungan untuk *under-forecast*** (nilai ramalan lebih rendah dari nilai aktual) selama periode pengujian.
+
+* **Perbandingan Training vs. Test Set**
+    Ukuran kesalahan pada `test set` (misalnya, MAE $3090) sangat mirip dengan `training set` (MAE $3092). Ini adalah pertanda yang **sangat baik**. Ini menunjukkan bahwa model Anda **stabil dan tidak *overfit***, karena kinerjanya tidak menurun drastis saat dihadapkan pada data baru.
