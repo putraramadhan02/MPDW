@@ -1711,7 +1711,7 @@ tersebut.</p>
 </div>
 <div id="impor-data" class="section level2">
 <h2><strong>Impor Data</strong></h2>
-<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>data <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">&quot;C:/Users/Putera Ramadhan/OneDrive/Documents/IPB University/Semester 5/(MPDW) Metode Peramalan Deret Waktu/UTS/Praktikum/MPDW/Pertemuan 1/Data/Reversed Bitcoin Historical Price.csv&quot;</span>)</span>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>data <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">&quot;C:/Users/Putera Ramadhan/OneDrive/Documents/IPB University/Semester 5/STA1341 - Metode Peramalan Deret Waktu/UTS/Praktikum/MPDW/Pertemuan 1/Data/Reversed Bitcoin Historical Price.csv&quot;</span>)</span>
 <span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>data<span class="sc">$</span>Date <span class="ot">&lt;-</span> <span class="fu">as.Date</span>(data<span class="sc">$</span>Date, <span class="at">format=</span><span class="st">&quot;%m/%d/%Y&quot;</span>)</span>
 <span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a><span class="co"># Menghapus koma (&#39;,&#39;) sebelum mengubah tipe data menjadi numerik</span></span>
 <span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>data<span class="sc">$</span>Price <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(<span class="fu">gsub</span>(<span class="st">&quot;,&quot;</span>, <span class="st">&quot;&quot;</span>, data<span class="sc">$</span>Price))</span>
