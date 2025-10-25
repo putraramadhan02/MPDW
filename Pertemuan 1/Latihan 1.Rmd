@@ -1,15 +1,30 @@
 ---
-title: "Pendahuluan MPDW"
+title: "**Pendahuluan MPDW**"
 author: "Elardian Putera Ramadhan (G1401231042)"
 date: "2025-08-21"
-output: html_document
+output:
+  html_document:
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: true
+    highlight: tango
+    code_folding: show
+    toc_depth: 5
+    number_sections: false
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    fig_caption: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Install Packages
+## **Install Packages**
 
 ```{r}
 # install.packages(c("forecast", "graphics", "TTR", "TSA", "aTSA", "lmtest", "MLmetrics", "car", "dplyr", "MASS", "tsibble", "tseries", "ggplot2", "nortest" ))
