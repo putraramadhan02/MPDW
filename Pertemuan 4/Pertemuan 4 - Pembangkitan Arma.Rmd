@@ -50,6 +50,7 @@ Akan dicoba membangkitkan proses MA paling sederhana, yaitu MA(1) dengan $\theta
 ```{r}
 set.seed(1234)
 ma <- wn[1]
+ma
 ```
 
 Nilai-nilai selanjutnya dapat dicari melalui *loop*. Bentuk loop dapat dilihat dari rumus MA(1) yang hendak dibangkitkan:
